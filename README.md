@@ -1,12 +1,8 @@
-![Kirodex](src-tauri/icons/icon.png)
+<img src="src-tauri/icons/icon.png" alt="Kirodex" height="80" width="80"/>
 
-# Kirodex
+# Kirodex - Sponsored by <a href="https://lastline.app"><img src="assets/lastline-logo.png" alt="Lastline" height="20"></a> [**Lastline**](https://lastline.app)
 
 A native macOS desktop client for AI coding agents, powered by [Kiro CLI](https://kiro.dev)
-
-Sponsored by [![Lastline](assets/lastline-logo.png)](https://lastline.app) [**Lastline**](https://lastline.app)
-
----
 
 Kirodex is a desktop app for working with AI coding agents. Think of it as what [OpenAI Codex](https://openai.com/index/codex/) and [T3Code](https://t3.chat/code) do, but powered by [Kiro CLI](https://kiro.dev) and the open [Agent Client Protocol](https://github.com/anthropics/agent-client-protocol).
 
