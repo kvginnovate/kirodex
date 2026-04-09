@@ -345,3 +345,25 @@ The frontend is now the sole source of truth for conversation history. Backend e
 - `src/renderer/stores/taskStore.ts`
 
 **Build:** tsc ✓, vite build ✓ (5.27s)
+## 2026-04-09 16:32 (Dubai)
+- Added Steve Jobs quote to README.md as a markdown blockquote between the intro paragraph and Features section.
+
+## 2026-04-09 16:36 (Dubai)
+- Fixed SVG fill color from `#16505` (invalid) to `#165050`, saved as `assets/lastline-logo.svg`
+- Converted SVG to PNG (120x104) at `assets/lastline-logo.png` using rsvg-convert
+- Added Sponsors section to README.md between Contributing and Inspiration sections with Lastline logo and link to lastline.app
+
+## 2026-04-09 16:38 (Dubai)
+- Moved Sponsors section in README.md from between Contributing/Inspiration to between Inspiration/Author
+
+## 2026-04-09 16:38 (Dubai)
+- Moved Sponsors to directly below the logo at the top of README.md, centered with inline layout
+
+## 2026-04-09 16:39 (Dubai)
+- Restructured README header: centered h1 title, centered tagline, smaller sponsor line using `<sub>`, cleaner visual hierarchy
+
+## 2026-04-09 16:42 (Dubai)
+- Converted entire README header from HTML to pure markdown (no more `<p>`, `<h1>`, `<sub>`, `<a>`, `<img>` tags)
+
+## 2026-04-09 16:43 (Dubai)
+- Fixed README description: removed incorrect claim that Codex/T3Code are browser apps, repositioned Kirodex as a desktop app differentiated by Kiro CLI + ACP

@@ -1,14 +1,14 @@
-<p align="center">
-  <img src="src-tauri/icons/icon.png" width="80" height="80" alt="Kirodex" />
-</p>
+![Kirodex](src-tauri/icons/icon.png)
 
 # Kirodex
 
 A native macOS desktop client for AI coding agents, powered by [Kiro CLI](https://kiro.dev)
 
+Sponsored by [![Lastline](assets/lastline-logo.png)](https://lastline.app) [**Lastline**](https://lastline.app)
+
 ---
 
-Kirodex is a desktop app for working with AI coding agents. Think of it as what [OpenAI Codex](https://openai.com/index/codex/) and [T3Code](https://t3.chat/code) do in the browser, but as a native macOS app with a Rust backend.
+Kirodex is a desktop app for working with AI coding agents. Think of it as what [OpenAI Codex](https://openai.com/index/codex/) and [T3Code](https://t3.chat/code) do, but powered by [Kiro CLI](https://kiro.dev) and the open [Agent Client Protocol](https://github.com/anthropics/agent-client-protocol).
 
 Instead of running `kiro-cli` in a terminal, you get a dedicated window with a chat UI, task management, syntax-highlighted diffs, an integrated terminal, and git operations.
 
