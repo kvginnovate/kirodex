@@ -218,3 +218,65 @@ pub fn task_diff(state: tauri::State<'_, AcpState>, task_id: String) -> Result<S
 
     Ok(output)
 }
+
+/// Get unified diff for a single file (relative path) within a task's workspace.
+/// Returns empty string if the file has no changes.
+#[tauri::command]
+pub fn git_diff_file(
+    state: tauri::State<'_, AcpState>,
+    task_id: String,
+    file_path: String,
+) -> Result<String, AppError> {
+    let cwd = resolve_workspace(&state, &task_id)?;
+    let repo = Repository::open(&cwd)?;
+    let head_tree = repo.head().ok().and_then(|h| h.peel_to_tree().ok());
+
+    let mut output = String::new();
+
+    let mut diff_opts = DiffOptions::new();
+    diff_opts.pathspec(&file_path);
+
+    // Staged changes for this file
+    let staged = repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut diff_opts))?;
+    staged.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+        let origin = line.origin();
+        match origin {
+            'H' | 'F' => {
+                // File header lines (diff --git, ---, +++, etc.)
+                output.push_str(std::str::from_utf8(line.content()).unwrap_or(""));
+            }
+            '+' | '-' | ' ' => {
+                output.push(origin);
+                output.push_str(std::str::from_utf8(line.content()).unwrap_or(""));
+            }
+            _ => {
+                // Hunk headers and other meta lines
+                output.push_str(std::str::from_utf8(line.content()).unwrap_or(""));
+            }
+        }
+        true
+    })?;
+
+    // Unstaged changes for this file
+    let mut diff_opts2 = DiffOptions::new();
+    diff_opts2.pathspec(&file_path);
+    let unstaged = repo.diff_index_to_workdir(None, Some(&mut diff_opts2))?;
+    unstaged.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+        let origin = line.origin();
+        match origin {
+            'H' | 'F' => {
+                output.push_str(std::str::from_utf8(line.content()).unwrap_or(""));
+            }
+            '+' | '-' | ' ' => {
+                output.push(origin);
+                output.push_str(std::str::from_utf8(line.content()).unwrap_or(""));
+            }
+            _ => {
+                output.push_str(std::str::from_utf8(line.content()).unwrap_or(""));
+            }
+        }
+        true
+    })?;
+
+    Ok(output)
+}

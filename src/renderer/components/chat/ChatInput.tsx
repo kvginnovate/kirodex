@@ -499,8 +499,8 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
               placeholder="Ask anything, @ to mention files, / for commands"
               disabled={disabled}
               rows={1}
-              className="block max-h-[200px] min-h-[70px] w-full resize-none bg-transparent text-[14px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/35"
-              style={{ overflow: 'auto' }}
+              className="block max-h-[200px] min-h-[70px] w-full resize-none bg-transparent text-[14px] leading-[1.6] text-foreground outline-none placeholder:text-muted-foreground/35"
+              style={{ overflow: 'auto', fontFamily: 'inherit', caretColor: 'var(--foreground)' }}
             />
           </div>
 

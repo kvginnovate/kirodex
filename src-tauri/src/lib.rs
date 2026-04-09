@@ -62,6 +62,7 @@ pub fn run() {
             git::git_stage,
             git::git_revert,
             git::task_diff,
+            git::git_diff_file,
             // ACP
             acp::task_create,
             acp::task_list,

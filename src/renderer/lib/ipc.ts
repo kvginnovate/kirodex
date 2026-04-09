@@ -75,6 +75,8 @@ export const ipc = {
     invoke('git_create_branch', { cwd, branch }),
   getTaskDiff: (taskId: string): Promise<string> =>
     invoke('task_diff', { taskId }),
+  gitDiffFile: (taskId: string, filePath: string): Promise<string> =>
+    invoke('git_diff_file', { taskId, filePath }),
   openInEditor: (path: string, editor: string): Promise<void> =>
     invoke('open_in_editor', { path, editor }),
   gitCommit: (taskId: string, message: string): Promise<void> =>
