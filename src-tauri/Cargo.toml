@@ -23,6 +23,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["compat"] }
 async-trait = "0.1"
 agent-client-protocol = { version = "0.10.4", features = ["unstable_session_model", "unstable_session_usage", "unstable_session_fork", "unstable_cancel_request", "unstable_message_id"] }
+base64 = "0.22"
 dirs = "6"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }

@@ -473,3 +473,61 @@ The frontend is now the sole source of truth for conversation history. Backend e
 
 ## 2026-04-09 21:41 (Dubai)
 - Matched header background to sidebar: added `bg-card` to both the main header and fallback header in `AppHeader.tsx`. Sidebar already uses `bg-card`.
+
+## 2026-04-09 21:58 (Dubai)
+- Fixed thread name overflow in sidebar: added `min-w-0` + `overflow-hidden` to project `<li>`, replaced `w-full` with `min-w-0` on thread `<li>`, removed `w-full` from thread list `<ul>`. Thread names now truncate properly within the sidebar width, keeping the delete button visible on hover. Modified `TaskSidebar.tsx`.
+
+## 2026-04-10 02:10 GST (Dubai, UTC+4)
+
+### Added file/image attachment support to chat input
+
+Added drag-and-drop, paste, and file picker support for attaching files and images to chat messages, with previews and a cute animated drag-over state.
+
+**What was built:**
+
+1. **Rust backend** (`fs_ops.rs`): Added `read_file_base64` command using the `base64` crate (v0.22) for reading binary files as base64 strings. Registered in `lib.rs`.
+
+2. **Types** (`types/index.ts`): Added `Attachment` interface and `AttachmentType` union (`'image' | 'text' | 'binary'`).
+
+3. **IPC bridge** (`ipc.ts`): Added `readFileBase64` function.
+
+4. **AttachmentPreview component** (`AttachmentPreview.tsx`):
+   - Image thumbnails: 64px with object-cover, gradient overlay showing file size
+   - File pills: smart icon selection (FileCode for code files, FileText for text, etc.)
+   - Animated remove buttons that appear on hover
+   - Accessible with role=list/listitem and aria-labels
+
+5. **DragOverlay component** (`DragOverlay.tsx`):
+   - Cute cat SVG mascot with ears, big eyes with shine, whiskers, nose, mouth, and paws
+   - Bouncing animation on the cat
+   - Animated marching dashed border (CSS keyframe `dash-march`)
+   - Semi-transparent backdrop blur overlay
+
+6. **ChatInput integration** (`ChatInput.tsx`):
+   - Attachment state via `useState<Attachment[]>`
+   - Drag counter pattern (`dragCounterRef`) to prevent flicker on child element boundaries
+   - Drop handler: tries `text/uri-list` first for native Tauri paths, falls back to browser File API
+   - Paste handler: intercepts clipboard image items
+   - Paperclip button in footer toolbar with hidden `<input type="file" multiple>`
+   - AttachmentPreview strip renders between mentioned files and textarea
+   - DragOverlay renders inside the card container when `isDragOver`
+   - `handleSend` builds message with attachment content:
+     - Images: base64 data URLs with `<image>` tags
+     - Text files: fenced code blocks with language extension
+     - Binary files: path references
+   - `canSend` updated to allow sending with attachments even without text
+
+**Files modified:**
+- `src-tauri/Cargo.toml` (added base64 = "0.22")
+- `src-tauri/src/commands/fs_ops.rs` (added read_file_base64)
+- `src-tauri/src/lib.rs` (registered read_file_base64)
+- `src/renderer/types/index.ts` (Attachment type)
+- `src/renderer/lib/ipc.ts` (readFileBase64)
+- `src/renderer/components/chat/AttachmentPreview.tsx` (new)
+- `src/renderer/components/chat/DragOverlay.tsx` (new)
+- `src/renderer/components/chat/ChatInput.tsx` (integration)
+
+**Verification:** Both TypeScript (`tsc --noEmit`) and Rust (`cargo check`) compile clean.
+
+## 2026-04-09 22:16 (Dubai)
+- Added right-click context menu on project names in sidebar with: Open in Finder (uses existing `openUrl` IPC), Edit Name (inline input with rename via `projectNames` store), Archive Threads (removes all threads but keeps project), Delete (with visual separator). Added `archiveThreads` store method. Wired `projectNames` into the sidebar so custom names persist. Modified `TaskSidebar.tsx` and `taskStore.ts`.

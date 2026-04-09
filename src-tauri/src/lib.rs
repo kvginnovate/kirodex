@@ -48,6 +48,7 @@ pub fn run() {
             // File ops
             fs_ops::detect_kiro_cli,
             fs_ops::read_text_file,
+            fs_ops::read_file_base64,
             fs_ops::pick_folder,
             fs_ops::open_in_editor,
             fs_ops::open_url,

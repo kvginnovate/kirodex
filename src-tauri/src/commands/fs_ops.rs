@@ -30,6 +30,13 @@ pub fn read_text_file(path: String) -> Option<String> {
 }
 
 #[tauri::command]
+pub fn read_file_base64(path: String) -> Option<String> {
+    use base64::Engine;
+    let bytes = std::fs::read(path).ok()?;
+    Some(base64::engine::general_purpose::STANDARD.encode(&bytes))
+}
+
+#[tauri::command]
 pub async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
     app.dialog().file().pick_folder(move |folder| {

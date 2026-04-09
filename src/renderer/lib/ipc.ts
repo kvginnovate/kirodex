@@ -101,6 +101,8 @@ export const ipc = {
     invoke('get_kiro_config', { projectPath }),
   readFile: (filePath: string): Promise<string | null> =>
     invoke('read_text_file', { path: filePath }),
+  readFileBase64: (filePath: string): Promise<string | null> =>
+    invoke('read_file_base64', { path: filePath }),
   listProjectFiles: (root: string, respectGitignore: boolean = true): Promise<ProjectFile[]> =>
     invoke('list_project_files', { root, respectGitignore }),
   openUrl: (url: string): Promise<void> =>

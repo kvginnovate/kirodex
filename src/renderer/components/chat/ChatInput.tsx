@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useRef, useCallback, useEffect, type KeyboardEvent, type ChangeEvent } from 'react'
-import { ChevronDown, ShieldCheck, ShieldOff } from 'lucide-react'
+import { ChevronDown, ShieldCheck, ShieldOff, Paperclip } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useSettingsStore, type ModelOption } from '@/stores/settingsStore'
@@ -9,8 +9,13 @@ import { SlashCommandPicker } from './SlashCommandPicker'
 import { SlashActionPanel } from './SlashPanels'
 import { BranchSelector } from './BranchSelector'
 import { FileMentionPicker, FileMentionPill } from './FileMentionPicker'
+import { AttachmentPreview } from './AttachmentPreview'
+import { DragOverlay } from './DragOverlay'
 import { useSlashAction } from '@/hooks/useSlashAction'
-import type { ProjectFile } from '@/types'
+import type { ProjectFile, Attachment, AttachmentType } from '@/types'
+
+// Tauri drag-drop is handled at the native level, not browser events
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 
 // ── Inline SVG icons for modes ──────────────────────────────────────
 const ChatBubbleIcon = () => (
@@ -235,6 +240,122 @@ const ModeToggle = memo(function ModeToggle() {
   )
 })
 
+// ── Attachment helpers ───────────────────────────────────────────────
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'])
+const TEXT_EXTENSIONS = new Set([
+  'txt', 'md', 'json', 'yaml', 'yml', 'toml', 'xml', 'csv', 'log',
+  'ts', 'tsx', 'js', 'jsx', 'py', 'rs', 'go', 'rb', 'java', 'c', 'cpp', 'h',
+  'css', 'scss', 'html', 'sql', 'sh', 'bash', 'zsh', 'fish', 'env',
+  'gitignore', 'dockerignore', 'editorconfig', 'prettierrc',
+])
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_TEXT_SIZE = 512 * 1024 // 512KB for inline text
+
+const getAttachmentType = (name: string): AttachmentType => {
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  if (IMAGE_EXTENSIONS.has(ext)) return 'image'
+  if (TEXT_EXTENSIONS.has(ext)) return 'text'
+  return 'binary'
+}
+
+const getMimeType = (name: string): string => {
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  const mimeMap: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+    bmp: 'image/bmp', ico: 'image/x-icon',
+    json: 'application/json', xml: 'application/xml',
+    pdf: 'application/pdf', zip: 'application/zip',
+  }
+  return mimeMap[ext] ?? 'application/octet-stream'
+}
+
+const processDroppedFile = async (file: File): Promise<Attachment | null> => {
+  if (file.size > MAX_ATTACHMENT_SIZE) return null
+  const type = getAttachmentType(file.name)
+  const attachment: Attachment = {
+    id: crypto.randomUUID(),
+    name: file.name,
+    path: '',
+    type,
+    size: file.size,
+    mimeType: file.type || getMimeType(file.name),
+  }
+  if (type === 'image') {
+    const base64 = await fileToBase64(file)
+    return { ...attachment, preview: `data:${attachment.mimeType};base64,${base64}`, base64Content: base64 }
+  }
+  if (type === 'text' && file.size <= MAX_TEXT_SIZE) {
+    const text = await file.text()
+    return { ...attachment, textContent: text }
+  }
+  const base64 = await fileToBase64(file)
+  return { ...attachment, base64Content: base64 }
+}
+
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      resolve(result.split(',')[1] ?? '')
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+const processNativePath = async (filePath: string): Promise<Attachment | null> => {
+  const name = filePath.split('/').pop() ?? filePath
+  const type = getAttachmentType(name)
+  if (type === 'image') {
+    const base64 = await ipc.readFileBase64(filePath)
+    if (!base64) return null
+    const mimeType = getMimeType(name)
+    const size = Math.round(base64.length * 0.75)
+    return {
+      id: crypto.randomUUID(), name, path: filePath, type, size, mimeType,
+      preview: `data:${mimeType};base64,${base64}`, base64Content: base64,
+    }
+  }
+  if (type === 'text') {
+    const text = await ipc.readFile(filePath)
+    if (!text) return null
+    if (text.length > MAX_TEXT_SIZE) return null
+    return {
+      id: crypto.randomUUID(), name, path: filePath, type,
+      size: new Blob([text]).size, mimeType: getMimeType(name), textContent: text,
+    }
+  }
+  const base64 = await ipc.readFileBase64(filePath)
+  if (!base64) return null
+  return {
+    id: crypto.randomUUID(), name, path: filePath, type: 'binary',
+    size: Math.round(base64.length * 0.75), mimeType: getMimeType(name), base64Content: base64,
+  }
+}
+
+const buildAttachmentMessage = (attachments: readonly Attachment[]): string => {
+  if (attachments.length === 0) return ''
+  const parts: string[] = []
+  for (const a of attachments) {
+    if (a.type === 'image' && a.base64Content) {
+      parts.push(`[Attached image: ${a.name} (${a.mimeType}, ${a.size} bytes)]`)
+      parts.push(`<image src="data:${a.mimeType};base64,${a.base64Content}" />`)
+    } else if (a.type === 'text' && a.textContent) {
+      const ext = a.name.split('.').pop() ?? ''
+      parts.push(`[Attached file: ${a.name}]`)
+      parts.push('```' + ext)
+      parts.push(a.textContent)
+      parts.push('```')
+    } else if (a.path) {
+      parts.push(`[Attached file: ${a.name} at ${a.path}]`)
+    } else {
+      parts.push(`[Attached file: ${a.name} (${a.size} bytes, binary)]`)
+    }
+  }
+  return parts.join('\n')
+}
+
 // ── ChatInput ───────────────────────────────────────────────────────
 interface ChatInputProps {
   disabled?: boolean
@@ -252,7 +373,10 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
   const [mentionIndex, setMentionIndex] = useState(0)
   const [mentionTrigger, setMentionTrigger] = useState<{ start: number; query: string } | null>(null)
   const [mentionedFiles, setMentionedFiles] = useState<ProjectFile[]>([])
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [isDragOver, setIsDragOver] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const backendCommands = useSettingsStore((s) => s.availableCommands)
   const { panel, dismissPanel, execute } = useSlashAction()
 
@@ -303,6 +427,63 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
     setMentionTrigger(null)
   }, [])
 
+  // ── Attachment handlers ─────────────────────────────────────────
+  const addAttachments = useCallback(async (files: File[]) => {
+    const results = await Promise.all(files.map(processDroppedFile))
+    const valid = results.filter((a): a is Attachment => a !== null)
+    if (valid.length > 0) setAttachments((prev) => [...prev, ...valid])
+  }, [])
+
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id))
+  }, [])
+
+  // Tauri intercepts drag-drop at the native level; browser onDrop never fires.
+  // Use onDragDropEvent to get file paths directly from the OS.
+  useEffect(() => {
+    let cancelled = false
+    const appWindow = getCurrentWebviewWindow()
+    const unlistenPromise = appWindow.onDragDropEvent(async (event) => {
+      if (cancelled) return
+      if (event.payload.type === 'over') {
+        setIsDragOver(true)
+      } else if (event.payload.type === 'drop') {
+        setIsDragOver(false)
+        const paths = event.payload.paths ?? []
+        const results = await Promise.all(paths.map((p) => processNativePath(p)))
+        const valid = results.filter((a): a is Attachment => a !== null)
+        if (valid.length > 0 && !cancelled) setAttachments((prev) => [...prev, ...valid])
+      } else {
+        // cancelled
+        setIsDragOver(false)
+      }
+    })
+    return () => {
+      cancelled = true
+      unlistenPromise.then((fn) => fn())
+    }
+  }, [])
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData.items)
+    const imageItems = items.filter((item) => item.type.startsWith('image/'))
+    if (imageItems.length === 0) return
+    e.preventDefault()
+    const files = imageItems.map((item) => item.getAsFile()).filter((f): f is File => f !== null)
+    if (files.length > 0) addAttachments(files)
+  }, [addAttachments])
+
+  const handleFilePickerClick = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length > 0) addAttachments(files)
+    // Reset so the same file can be selected again
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [addAttachments])
+
   const resize = useCallback(() => {
     const el = textareaRef.current
     if (!el) return
@@ -319,7 +500,8 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
 
   const handleSend = useCallback(() => {
     const trimmed = value.trim()
-    if (!trimmed || disabled) return
+    const hasAttachments = attachments.length > 0
+    if ((!trimmed && !hasAttachments) || disabled) return
     dismissPanel()
     // Build the final message with @file references for the backend
     let message = trimmed
@@ -331,14 +513,20 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
         message = missingRefs.map((f) => `@${f.path}`).join(' ') + ' ' + message
       }
     }
+    // Append attachment content
+    if (hasAttachments) {
+      const attachmentBlock = buildAttachmentMessage(attachments)
+      message = message ? `${message}\n\n${attachmentBlock}` : attachmentBlock
+    }
     setValue('')
     setSlashIndex(0)
     setMentionTrigger(null)
     setMentionedFiles([])
+    setAttachments([])
     onSendMessage(message)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     textareaRef.current?.focus()
-  }, [value, disabled, onSendMessage, dismissPanel, mentionedFiles])
+  }, [value, disabled, onSendMessage, dismissPanel, mentionedFiles, attachments])
 
   const handleSelectCommand = useCallback((cmd: { name: string }) => {
     if (execute(cmd.name)) {
@@ -421,15 +609,29 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
     detectMentionTrigger(el.value, el.selectionStart ?? el.value.length)
   }, [showPicker, showFilePicker, detectMentionTrigger])
 
-  const canSend = !disabled && value.trim().length > 0
+  const canSend = !disabled && (value.trim().length > 0 || attachments.length > 0)
 
   return (
     <div className="px-4 pt-1.5 pb-3 sm:px-6 sm:pt-2 sm:pb-4">
       <div className="mx-auto w-full min-w-0 max-w-2xl lg:max-w-3xl xl:max-w-4xl">
         <div className={cn(
-          'rounded-[20px] border bg-card transition-colors duration-200',
+          'relative rounded-[20px] border bg-card transition-colors duration-200',
           'focus-within:border-ring/45 border-border',
+          isDragOver && 'border-primary/50',
         )}>
+          {isDragOver && <DragOverlay />}
+
+          {/* Context usage — top right */}
+          {(contextUsage && contextUsage.size > 0) ? (
+            <div className="absolute right-3 top-2.5 z-10">
+              <ContextRing used={contextUsage.used} size={contextUsage.size} />
+            </div>
+          ) : messageCount > 0 ? (
+            <div className="absolute right-3 top-2.5 z-10">
+              <ContextRing used={Math.min(messageCount * 3, 95)} size={100} />
+            </div>
+          ) : null}
+
           {/* Mentioned files pills */}
           {mentionedFiles.length > 0 && (
             <div className="flex flex-wrap gap-1.5 px-3 pt-3 sm:px-4">
@@ -442,6 +644,12 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
               ))}
             </div>
           )}
+
+          {/* Attachment previews */}
+          <AttachmentPreview
+            attachments={attachments}
+            onRemove={handleRemoveAttachment}
+          />
 
           {/* Text area */}
           <div className="relative px-3 pb-2 pt-3.5 sm:px-4 sm:pt-4" style={{ isolation: 'isolate' }}>
@@ -470,6 +678,7 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               onSelect={handleSelect}
+              onPaste={handlePaste}
               placeholder="Ask anything, @ to mention files, / for commands"
               disabled={disabled}
               rows={1}
@@ -494,11 +703,28 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              {contextUsage && contextUsage.size > 0 ? (
-                <ContextRing used={contextUsage.used} size={contextUsage.size} />
-              ) : messageCount > 0 ? (
-                <ContextRing used={Math.min(messageCount * 3, 95)} size={100} />
-              ) : null}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={handleFilePickerClick}
+                    aria-label="Attach files"
+                    className="flex items-center justify-center rounded-lg p-1 text-muted-foreground/40 transition-colors hover:text-muted-foreground/70"
+                  >
+                    <Paperclip className="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-[11px]">Attach files or images</TooltipContent>
+              </Tooltip>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFileInputChange}
+                tabIndex={-1}
+                aria-hidden
+              />
               {isRunning ? (
                 <button
                   type="button"

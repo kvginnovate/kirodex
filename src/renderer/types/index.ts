@@ -177,6 +177,25 @@ export interface KiroConfig {
   mcpServers?: KiroMcpServer[]
 }
 
+// ── Attachments ───────────────────────────────────────────────────
+
+export type AttachmentType = 'image' | 'text' | 'binary'
+
+export interface Attachment {
+  readonly id: string
+  readonly name: string
+  readonly path: string
+  readonly type: AttachmentType
+  readonly size: number
+  readonly mimeType: string
+  /** Base64 data URL for image previews */
+  preview?: string
+  /** Text content for text files */
+  textContent?: string
+  /** Base64 content for binary embedding */
+  base64Content?: string
+}
+
 // ── Debug Panel Types ─────────────────────────────────────────────
 
 export type DebugCategory = 'notification' | 'request' | 'response' | 'error' | 'stderr' | 'lifecycle'
