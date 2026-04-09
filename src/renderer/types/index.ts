@@ -1,0 +1,175 @@
+export type TaskStatus = 'running' | 'paused' | 'completed' | 'error' | 'cancelled' | 'pending_permission'
+
+// ── Tool calls (matches ACP ToolCall / ToolCallUpdate) ────────────
+
+export type ToolKind = 'read' | 'edit' | 'delete' | 'move' | 'search' | 'execute' | 'think' | 'fetch' | 'switch_mode' | 'other'
+export type ToolCallStatus = 'pending' | 'in_progress' | 'completed' | 'failed'
+
+export interface ToolCallLocation {
+  path: string
+  line?: number | null
+}
+
+export interface ToolCallContentItem {
+  type: 'content' | 'diff' | 'terminal'
+  /** For type=content: text block */
+  text?: string
+  /** For type=diff */
+  path?: string
+  oldText?: string | null
+  newText?: string
+  /** For type=terminal */
+  terminalId?: string
+}
+
+export interface ToolCall {
+  toolCallId: string
+  title: string
+  status: ToolCallStatus
+  kind?: ToolKind
+  locations?: ToolCallLocation[]
+  content?: ToolCallContentItem[]
+  rawInput?: unknown
+  rawOutput?: unknown
+}
+
+// ── Plan (matches ACP Plan / PlanEntry) ───────────────────────────
+
+export type PlanEntryStatus = 'pending' | 'in_progress' | 'completed'
+export type PlanEntryPriority = 'high' | 'medium' | 'low'
+
+export interface PlanStep {
+  content: string
+  status: PlanEntryStatus
+  priority: PlanEntryPriority
+}
+
+// ── Messages ──────────────────────────────────────────────────────
+
+export interface TaskMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp: string
+  toolCalls?: ToolCall[]
+  thinking?: string
+}
+
+// ── Task ──────────────────────────────────────────────────────────
+
+export interface AgentTask {
+  id: string
+  name: string
+  workspace: string
+  status: TaskStatus
+  createdAt: string
+  messages: TaskMessage[]
+  pendingPermission?: {
+    requestId: string
+    toolName: string
+    description: string
+    options: Array<{ optionId: string; name: string; kind: string }>
+  }
+  /** Live tool calls for the current turn (cleared on turn end) */
+  liveToolCalls?: ToolCall[]
+  /** Live thinking text for the current turn */
+  liveThinking?: string
+  /** Current plan */
+  plan?: PlanStep[]
+  /** Context usage: used / size */
+  contextUsage?: { used: number; size: number } | null
+  agentProfileId?: string
+  /** True only when the user explicitly hit Pause mid-run (not draft/idle) */
+  userPaused?: boolean
+}
+
+// ── Profiles ──────────────────────────────────────────────────────
+
+export interface AgentProfile {
+  id: string
+  name: string
+  agentId: string
+  tags: string[]
+  isDefault: boolean
+}
+
+export interface ActivityEntry {
+  taskId: string
+  taskName: string
+  status: TaskStatus
+  timestamp: string
+}
+
+export interface ProjectPrefs {
+  modelId?: string | null
+  autoApprove?: boolean
+}
+
+export interface AppSettings {
+  kiroBin: string
+  agentProfiles: AgentProfile[]
+  fontSize: number
+  defaultModel?: string | null
+  autoApprove?: boolean
+  projectPrefs?: Record<string, ProjectPrefs>
+}
+
+// ── Kiro Configuration Types ──────────────────────────────────────
+
+export interface KiroAgent {
+  name: string
+  description: string
+  tools: string[]
+  source: 'global' | 'local'
+  filePath: string
+}
+
+export interface KiroSkill {
+  name: string
+  source: 'global' | 'local'
+  filePath: string
+}
+
+export interface KiroSteeringRule {
+  name: string
+  alwaysApply: boolean
+  source: 'global' | 'local'
+  excerpt: string
+  filePath: string
+}
+
+export interface KiroMcpServer {
+  name: string
+  enabled: boolean
+  transport: 'stdio' | 'http'
+  command?: string
+  args?: string[]
+  url?: string
+  error?: string
+  filePath: string
+  status?: 'connecting' | 'ready' | 'needs-auth' | 'error'
+  oauthUrl?: string
+}
+
+export interface KiroConfig {
+  agents: KiroAgent[]
+  skills: KiroSkill[]
+  steeringRules: KiroSteeringRule[]
+  mcpServers?: KiroMcpServer[]
+}
+
+// ── Debug Panel Types ─────────────────────────────────────────────
+
+export type DebugCategory = 'notification' | 'request' | 'response' | 'error' | 'stderr' | 'lifecycle'
+
+export interface DebugLogEntry {
+  id: number
+  timestamp: string
+  direction: 'in' | 'out'
+  category: DebugCategory
+  type: string
+  taskId: string | null
+  summary: string
+  payload: unknown
+  isError: boolean
+  mcpServerName?: string
+}

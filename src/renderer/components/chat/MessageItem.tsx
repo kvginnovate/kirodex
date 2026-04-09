@@ -1,0 +1,262 @@
+import { memo, useState, useCallback, useRef, useEffect } from 'react'
+import { Copy, Check, Circle, ExternalLink, Key } from 'lucide-react'
+import type { TaskMessage, ToolCall } from '@/types'
+import { cn } from '@/lib/utils'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useKiroStore } from '@/stores/kiroStore'
+import { ipc } from '@/lib/ipc'
+import ChatMarkdown from './ChatMarkdown'
+import { ToolCallDisplay } from './ToolCallDisplay'
+import { ThinkingDisplay } from './ThinkingDisplay'
+
+const LOADING_WORDS = [
+  'Thinking', 'Reasoning', 'Analyzing', 'Planning', 'Processing',
+  'Reflecting', 'Considering', 'Evaluating', 'Synthesizing', 'Crafting',
+]
+
+const MorphBlob = memo(function MorphBlob() {
+  return (
+    <svg
+      width="18" height="18" viewBox="0 0 100 100"
+      className="shrink-0 text-primary/70"
+      aria-hidden
+    >
+      <path fill="currentColor">
+        <animate
+          attributeName="d"
+          dur="3s"
+          repeatCount="indefinite"
+          calcMode="spline"
+          keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1"
+          values="
+            M50,20 C70,10 90,30 85,50 C80,70 65,88 50,85 C35,82 15,68 15,50 C15,32 30,30 50,20Z;
+            M50,15 C75,15 90,35 88,55 C86,75 68,90 48,88 C28,86 10,70 12,50 C14,30 25,15 50,15Z;
+            M50,18 C68,8 92,25 90,50 C88,75 70,92 50,90 C30,88 8,72 10,50 C12,28 32,28 50,18Z;
+            M50,22 C72,12 88,32 86,52 C84,72 66,90 46,88 C26,86 12,68 14,48 C16,28 28,32 50,22Z;
+            M50,20 C70,10 90,30 85,50 C80,70 65,88 50,85 C35,82 15,68 15,50 C15,32 30,30 50,20Z
+          "
+        />
+      </path>
+    </svg>
+  )
+})
+
+function McpStatusLines() {
+  const mcpServers = useKiroStore((s) => s.config.mcpServers ?? [])
+  const active = mcpServers.filter((m) => m.enabled && m.status)
+
+  if (active.length === 0) return null
+
+  const needsAction = active.filter((m) => m.status === 'needs-auth' || m.status === 'error')
+  const others = active.filter((m) => m.status !== 'needs-auth' && m.status !== 'error')
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      {needsAction.map((m) => (
+        <McpActionBanner key={m.name} server={m} />
+      ))}
+
+      {others.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+          {others.map((m) => {
+            const isReady = m.status === 'ready'
+            const isConnecting = m.status === 'connecting'
+            return (
+              <span key={m.name} className="flex items-center gap-1 text-[10px] text-muted-foreground/40">
+                {isConnecting ? (
+                  <span className="size-1.5 shrink-0 rounded-full border border-sky-400 border-t-transparent animate-spin" />
+                ) : (
+                  <Circle className={cn('size-1.5 shrink-0 fill-current', isReady ? 'text-emerald-400' : 'text-muted-foreground/30')} />
+                )}
+                {isConnecting ? `${m.name}\u2026` : m.name}
+              </span>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function McpActionBanner({ server }: { server: { name: string; status?: string; error?: string; oauthUrl?: string } }) {
+  const needsAuth = server.status === 'needs-auth'
+  const hasError = server.status === 'error'
+
+  if (needsAuth && server.oauthUrl) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-2.5 py-1.5">
+        <Key className="size-3 shrink-0 text-amber-500" />
+        <div className="min-w-0 flex-1">
+          <span className="text-[11px] font-medium text-foreground">{server.name}</span>
+          <span className="ml-1 text-[10px] text-muted-foreground">needs authentication</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => ipc.openUrl(server.oauthUrl!)}
+          className="flex shrink-0 items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
+        >
+          <ExternalLink className="size-2.5" />
+          Open in Browser
+        </button>
+      </div>
+    )
+  }
+
+  if (hasError) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/[0.04] px-2.5 py-1.5">
+        <Circle className="size-2 shrink-0 fill-current text-red-400" />
+        <div className="min-w-0 flex-1">
+          <span className="text-[11px] font-medium text-foreground">{server.name}</span>
+          <span className="ml-1 text-[10px] text-red-400/70">failed to connect</span>
+          {server.error && (
+            <p className="mt-0.5 truncate text-[9px] font-mono text-red-400/50">{server.error}</p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return null
+}
+
+function GeneratingIndicator() {
+  const [idx, setIdx] = useState(() => Math.floor(Math.random() * LOADING_WORDS.length))
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    const cycle = () => {
+      setVisible(false)
+      setTimeout(() => {
+        setIdx((i) => (i + 1) % LOADING_WORDS.length)
+        setVisible(true)
+      }, 300)
+    }
+    const t = setInterval(cycle, 2200)
+    return () => clearInterval(t)
+  }, [])
+
+  return (
+    <div className="py-1 select-none">
+      <div className="flex items-center gap-2">
+        <MorphBlob />
+        <span className="inline-flex gap-[3px] items-center">
+          {[0, 160, 320].map((d) => (
+            <span
+              key={d}
+              className="size-[3px] rounded-full bg-muted-foreground/40"
+              style={{ animation: `cursor-fade 1.2s ease-in-out ${d}ms infinite` }}
+            />
+          ))}
+        </span>
+        <span
+          className="text-xs text-muted-foreground/50 transition-opacity duration-300"
+          style={{ opacity: visible ? 1 : 0 }}
+        >
+          {LOADING_WORDS[idx]}&hellip;
+        </span>
+      </div>
+      <McpStatusLines />
+    </div>
+  )
+}
+
+
+interface MessageItemProps {
+  message: TaskMessage
+  streaming?: boolean
+  liveToolCalls?: ToolCall[]
+  liveThinking?: string
+}
+
+export const MessageItem = memo(function MessageItem({
+  message,
+  streaming,
+  liveToolCalls,
+  liveThinking,
+}: MessageItemProps) {
+  const isUser = message.role === 'user'
+  const [copied, setCopied] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleCopy = useCallback(() => {
+    void navigator.clipboard.writeText(message.content).then(() => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      setCopied(true)
+      timerRef.current = setTimeout(() => setCopied(false), 1200)
+    })
+  }, [message.content])
+
+  const timeStr = message.timestamp
+    ? new Date(message.timestamp).toLocaleTimeString()
+    : ''
+
+  if (message.role === 'system') {
+    return (
+      <div className="pb-3 px-1" data-timeline-row-kind="message" data-message-role="system">
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2 text-[13px] text-destructive/80">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0" aria-hidden>
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span>{message.content.replace(/^\u26a0\ufe0f\s*/, '')}</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (isUser) {
+    return (
+      <div className="pb-3" data-timeline-row-kind="message" data-message-role="user">
+        <div className="flex justify-end">
+          <div className="group relative max-w-[75%]">
+            <div className="rounded-2xl rounded-br-md bg-primary/10 px-3.5 py-2 dark:bg-primary/[0.08]">
+              <p className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-foreground">
+                {message.content}
+              </p>
+            </div>
+            <div className="mt-1 flex items-center justify-end gap-1.5 px-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="rounded-md p-0.5 text-muted-foreground/0 transition-all group-hover:text-muted-foreground/50 hover:!text-foreground"
+                  >
+                    {copied
+                      ? <Check className="size-3" aria-hidden />
+                      : <Copy className="size-3" aria-hidden />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{copied ? 'Copied!' : 'Copy message'}</TooltipContent>
+              </Tooltip>
+              <span className="text-[10px] tabular-nums text-muted-foreground/30">{timeStr}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const thinkingText = message.thinking || (streaming ? liveThinking : undefined)
+  const toolCalls = message.toolCalls?.length ? message.toolCalls : (streaming ? liveToolCalls : undefined)
+
+  return (
+    <div className="pb-4" data-timeline-row-kind="message" data-message-role="assistant">
+      {thinkingText && (
+        <ThinkingDisplay text={thinkingText} isActive={streaming} />
+      )}
+
+      {toolCalls && toolCalls.length > 0 && (
+        <ToolCallDisplay toolCalls={toolCalls} />
+      )}
+
+      {message.content ? (
+        <ChatMarkdown text={message.content} isStreaming={streaming} />
+      ) : streaming ? (
+        !thinkingText && (!toolCalls || toolCalls.length === 0) ? (
+          <GeneratingIndicator />
+        ) : null
+      ) : null}
+    </div>
+  )
+})

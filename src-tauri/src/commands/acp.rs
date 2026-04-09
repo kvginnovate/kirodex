@@ -1,0 +1,952 @@
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use tokio::sync::{mpsc, oneshot};
+use uuid::Uuid;
+
+// ── Frontend-facing types (match Electron's JSON shape) ────────────────
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolCallData {
+    pub tool_call_id: String,
+    pub title: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locations: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_input: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_output: Option<Value>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskMessage {
+    pub role: String,
+    pub content: String,
+    pub timestamp: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCallData>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanStep {
+    pub content: String,
+    pub status: String,
+    pub priority: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionOption {
+    pub option_id: String,
+    pub name: String,
+    pub kind: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingPermission {
+    pub request_id: String,
+    pub tool_name: String,
+    pub description: String,
+    pub options: Vec<PermissionOption>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Task {
+    pub id: String,
+    pub name: String,
+    pub workspace: String,
+    pub status: String,
+    pub created_at: String,
+    pub messages: Vec<TaskMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pending_permission: Option<PendingPermission>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<Vec<PlanStep>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_usage: Option<ContextUsage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_approve: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_paused: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextUsage {
+    pub used: u64,
+    pub size: u64,
+}
+
+// ── Commands sent to the ACP connection thread ─────────────────────────
+
+pub enum AcpCommand {
+    Prompt(String),
+    Cancel,
+    SetMode(String),
+    Kill,
+}
+
+// ── Per-task connection handle ─────────────────────────────────────────
+
+pub struct ConnectionHandle {
+    pub cmd_tx: mpsc::UnboundedSender<AcpCommand>,
+    pub alive: Arc<std::sync::atomic::AtomicBool>,
+}
+
+// ── Global ACP state ───────────────────────────────────────────────────
+
+pub struct AcpState {
+    pub tasks: Mutex<HashMap<String, Task>>,
+    pub connections: Mutex<HashMap<String, ConnectionHandle>>,
+    pub permission_resolvers: Mutex<HashMap<String, oneshot::Sender<PermissionReply>>>,
+}
+
+pub struct PermissionReply {
+    pub option_id: String,
+}
+
+impl Default for AcpState {
+    fn default() -> Self {
+        Self {
+            tasks: Mutex::new(HashMap::new()),
+            connections: Mutex::new(HashMap::new()),
+            permission_resolvers: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+// ── ACP connection spawner ─────────────────────────────────────────────
+// The ACP Rust SDK uses !Send futures, so we run each connection on a
+// dedicated single-threaded tokio runtime in its own OS thread.
+// Communication happens via channels.
+
+use agent_client_protocol as acp;
+use acp::Agent as _; // Brings initialize, new_session, prompt, cancel, set_session_mode into scope
+use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+
+struct KirodexClient {
+    task_id: String,
+    app: tauri::AppHandle,
+    auto_approve: bool,
+    perm_tx: mpsc::UnboundedSender<(String, acp::RequestPermissionRequest, oneshot::Sender<PermissionReply>)>,
+}
+
+#[async_trait::async_trait(?Send)]
+impl acp::Client for KirodexClient {
+    async fn session_notification(&self, args: acp::SessionNotification) -> acp::Result<()> {
+        let tid = &self.task_id;
+        // Serialize the update to JSON Value so we can inspect the sessionUpdate field
+        let val = serde_json::to_value(&args).unwrap_or_default();
+        let update = val.get("update").unwrap_or(&val);
+        let update_type = update.get("sessionUpdate").and_then(|v| v.as_str()).unwrap_or("");
+
+        use tauri::Emitter;
+        match update_type {
+            "agent_message_chunk" => {
+                let text = update.get("content")
+                    .and_then(|c| c.get("text"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("");
+                if !text.is_empty() {
+                    let _ = self.app.emit("message_chunk", serde_json::json!({
+                        "taskId": tid, "chunk": text
+                    }));
+                }
+            }
+            "agent_thought_chunk" => {
+                let text = update.get("content")
+                    .and_then(|c| c.get("text"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("");
+                if !text.is_empty() {
+                    let _ = self.app.emit("thinking_chunk", serde_json::json!({
+                        "taskId": tid, "chunk": text
+                    }));
+                }
+            }
+            "tool_call" => {
+                let _ = self.app.emit("tool_call", serde_json::json!({
+                    "taskId": tid, "toolCall": update
+                }));
+            }
+            "tool_call_update" => {
+                let _ = self.app.emit("tool_call_update", serde_json::json!({
+                    "taskId": tid, "toolCall": update
+                }));
+            }
+            "plan" => {
+                let _ = self.app.emit("plan_update", serde_json::json!({
+                    "taskId": tid, "plan": update.get("entries")
+                }));
+            }
+            "usage_update" => {
+                let used = update.get("used").and_then(|v| v.as_u64()).unwrap_or(0);
+                let size = update.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
+                let _ = self.app.emit("usage_update", serde_json::json!({
+                    "taskId": tid, "used": used, "size": size
+                }));
+            }
+            _ => {
+                log::debug!("[ACP] unhandled notification: {update_type}");
+            }
+        }
+
+        // Also emit to debug log
+        let _ = self.app.emit("debug_log", serde_json::json!({
+            "direction": "in", "category": "notification", "type": update_type,
+            "taskId": tid, "summary": update_type, "payload": update, "isError": false
+        }));
+
+        Ok(())
+    }
+
+    async fn request_permission(&self, args: acp::RequestPermissionRequest) -> acp::Result<acp::RequestPermissionResponse> {
+        let val = serde_json::to_value(&args).unwrap_or_default();
+
+        // Extract options
+        let options: Vec<PermissionOption> = val.get("options")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|o| {
+                Some(PermissionOption {
+                    option_id: o.get("optionId")?.as_str()?.to_string(),
+                    name: o.get("name")?.as_str()?.to_string(),
+                    kind: o.get("kind")?.as_str()?.to_string(),
+                })
+            }).collect())
+            .unwrap_or_default();
+
+        // Auto-approve logic (matches Electron)
+        if self.auto_approve {
+            let allow_opt = options.iter()
+                .find(|o| o.kind == "allow_once")
+                .or_else(|| options.iter().find(|o| o.kind == "allow_always"))
+                .or_else(|| options.first());
+            if let Some(opt) = allow_opt {
+                return Ok(serde_json::from_value(serde_json::json!({
+                    "outcome": { "outcome": "selected", "optionId": opt.option_id }
+                })).unwrap());
+            }
+        }
+
+        // Send to main thread for UI handling
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let request_id = format!("perm-{}", chrono::Utc::now().timestamp_millis());
+        let _ = self.perm_tx.send((request_id.clone(), args, reply_tx));
+
+        // Wait for user response
+        match reply_rx.await {
+            Ok(reply) => {
+                Ok(serde_json::from_value(serde_json::json!({
+                    "outcome": { "outcome": "selected", "optionId": reply.option_id }
+                })).unwrap())
+            }
+            Err(_) => {
+                Ok(serde_json::from_value(serde_json::json!({
+                    "outcome": { "outcome": "cancelled" }
+                })).unwrap())
+            }
+        }
+    }
+
+    async fn ext_notification(&self, args: acp::ExtNotification) -> acp::Result<()> {
+        let val = serde_json::to_value(&args).unwrap_or_default();
+        let method = val.get("method").and_then(|v| v.as_str()).unwrap_or("");
+        let params = val.get("params").cloned().unwrap_or(Value::Null);
+
+        use tauri::Emitter;
+        // MCP server tracking (matches Electron)
+        if method == "_kiro.dev/mcp/server_initialized" {
+            if let Some(name) = params.get("serverName").and_then(|v| v.as_str()) {
+                let _ = self.app.emit("mcp_update", serde_json::json!({
+                    "serverName": name, "status": "ready"
+                }));
+            }
+        }
+        if method == "_kiro.dev/mcp/oauth_request" {
+            if let Some(name) = params.get("serverName").and_then(|v| v.as_str()) {
+                let _ = self.app.emit("mcp_update", serde_json::json!({
+                    "serverName": name, "status": "needs-auth",
+                    "oauthUrl": params.get("oauthUrl")
+                }));
+            }
+        }
+
+        let _ = self.app.emit("debug_log", serde_json::json!({
+            "direction": "in", "category": "notification", "type": format!("ext:{method}"),
+            "taskId": self.task_id, "summary": format!("kiro notification: {method}"),
+            "payload": params, "isError": false
+        }));
+
+        Ok(())
+    }
+
+    async fn read_text_file(&self, args: acp::ReadTextFileRequest) -> acp::Result<acp::ReadTextFileResponse> {
+        let val = serde_json::to_value(&args).unwrap_or_default();
+        let path = val.get("path").and_then(|v| v.as_str()).unwrap_or("");
+        match std::fs::read_to_string(path) {
+            Ok(content) => Ok(serde_json::from_value(serde_json::json!({ "content": content })).unwrap()),
+            Err(_) => Ok(serde_json::from_value(serde_json::json!({ "content": "" })).unwrap()),
+        }
+    }
+
+    async fn write_text_file(&self, args: acp::WriteTextFileRequest) -> acp::Result<acp::WriteTextFileResponse> {
+        let val = serde_json::to_value(&args).unwrap_or_default();
+        let path = val.get("path").and_then(|v| v.as_str()).unwrap_or("");
+        let content = val.get("content").and_then(|v| v.as_str()).unwrap_or("");
+        let _ = std::fs::write(path, content);
+        Ok(serde_json::from_value(serde_json::json!({})).unwrap())
+    }
+
+    async fn ext_method(&self, _args: acp::ExtRequest) -> acp::Result<acp::ExtResponse> {
+        Err(acp::Error::method_not_found())
+    }
+}
+
+// ── Spawn a kiro-cli ACP connection on a dedicated thread ──────────────
+
+fn spawn_connection(
+    task_id: String,
+    workspace: String,
+    kiro_bin: String,
+    auto_approve: bool,
+    app: tauri::AppHandle,
+    acp_state: Arc<AcpState>,
+) -> Result<ConnectionHandle, String> {
+    let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<AcpCommand>();
+    let alive = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let alive_clone = alive.clone();
+    let _task_id_clone = task_id.clone();
+
+    let (perm_tx, mut perm_rx) = mpsc::unbounded_channel::<(
+        String,
+        acp::RequestPermissionRequest,
+        oneshot::Sender<PermissionReply>,
+    )>();
+
+    // Spawn permission handler on the Tauri async runtime
+    let app2 = app.clone();
+    let state2 = acp_state.clone();
+    let tid2 = task_id.clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some((request_id, req, reply_tx)) = perm_rx.recv().await {
+            let val = serde_json::to_value(&req).unwrap_or_default();
+            let tool_call = val.get("toolCall");
+            let tool_name = tool_call
+                .and_then(|tc| tc.get("title"))
+                .and_then(|t| t.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+            let options: Vec<PermissionOption> = val.get("options")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|o| {
+                    Some(PermissionOption {
+                        option_id: o.get("optionId")?.as_str()?.to_string(),
+                        name: o.get("name")?.as_str()?.to_string(),
+                        kind: o.get("kind")?.as_str()?.to_string(),
+                    })
+                }).collect())
+                .unwrap_or_default();
+            let description = if tool_name != "unknown" {
+                format!("{tool_name} requires permission")
+            } else {
+                "Permission requested".to_string()
+            };
+
+            // Update task status
+            {
+                let mut tasks = state2.tasks.lock().unwrap();
+                if let Some(task) = tasks.get_mut(&tid2) {
+                    task.status = "pending_permission".to_string();
+                    task.pending_permission = Some(PendingPermission {
+                        request_id: request_id.clone(),
+                        tool_name,
+                        description,
+                        options,
+                    });
+                    use tauri::Emitter;
+                    let _ = app2.emit("task_update", task.clone());
+                }
+            }
+
+            // Store the reply sender
+            state2.permission_resolvers.lock().unwrap().insert(request_id, reply_tx);
+        }
+    });
+
+    // Spawn the ACP connection on a dedicated OS thread with its own single-threaded runtime
+    let app3 = app.clone();
+    let tid3 = task_id.clone();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create tokio runtime for ACP");
+
+        let local = tokio::task::LocalSet::new();
+        local.block_on(&rt, async move {
+            let result = run_acp_connection(
+                tid3.clone(), workspace, kiro_bin, auto_approve,
+                app3.clone(), perm_tx, &mut cmd_rx,
+            ).await;
+
+            alive_clone.store(false, std::sync::atomic::Ordering::SeqCst);
+
+            if let Err(e) = result {
+                use tauri::Emitter;
+                let _ = app3.emit("debug_log", serde_json::json!({
+                    "direction": "in", "category": "error", "type": "connection-error",
+                    "taskId": tid3, "summary": e, "payload": { "error": e }, "isError": true
+                }));
+            }
+        });
+    });
+
+    Ok(ConnectionHandle { cmd_tx, alive })
+}
+
+async fn run_acp_connection(
+    task_id: String,
+    workspace: String,
+    kiro_bin: String,
+    auto_approve: bool,
+    app: tauri::AppHandle,
+    perm_tx: mpsc::UnboundedSender<(String, acp::RequestPermissionRequest, oneshot::Sender<PermissionReply>)>,
+    cmd_rx: &mut mpsc::UnboundedReceiver<AcpCommand>,
+) -> Result<(), String> {
+    // Spawn kiro-cli acp subprocess
+    let mut child = tokio::process::Command::new(&kiro_bin)
+        .arg("acp")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:{}", std::env::var("PATH").unwrap_or_default()))
+        .spawn()
+        .map_err(|e| format!("Failed to spawn kiro-cli: {e}"))?;
+
+    let stdin = child.stdin.take().ok_or("No stdin")?;
+    let stdout = child.stdout.take().ok_or("No stdout")?;
+    let stderr = child.stderr.take().ok_or("No stderr")?;
+
+    // Pipe stderr to debug log
+    let app_stderr = app.clone();
+    let tid_stderr = task_id.clone();
+    tokio::task::spawn_local(async move {
+        use tokio::io::AsyncReadExt;
+        let mut stderr = stderr;
+        let mut buf = vec![0u8; 4096];
+        loop {
+            match stderr.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => {
+                    let text = String::from_utf8_lossy(&buf[..n]).to_string();
+                    use tauri::Emitter;
+                    let _ = app_stderr.emit("debug_log", serde_json::json!({
+                        "direction": "in", "category": "stderr", "type": "stderr",
+                        "taskId": tid_stderr, "summary": &text[..text.len().min(120)],
+                        "payload": text, "isError": false
+                    }));
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    let outgoing = stdin.compat_write();
+    let incoming = stdout.compat();
+
+    let client = KirodexClient {
+        task_id: task_id.clone(),
+        app: app.clone(),
+        auto_approve,
+        perm_tx,
+    };
+
+    let (conn, io_future) = acp::ClientSideConnection::new(
+        client, outgoing, incoming,
+        |fut| { tokio::task::spawn_local(fut); },
+    );
+
+    // Run IO in background
+    tokio::task::spawn_local(async move {
+        if let Err(e) = io_future.await {
+            log::error!("[ACP] IO error for task: {e}");
+        }
+    });
+
+    // Initialize
+    let init_req = acp::InitializeRequest::new(acp::ProtocolVersion::V1)
+        .client_info(acp::Implementation::new("kirodex", "0.1.0").title("Kirodex"));
+    conn.initialize(init_req).await.map_err(|e| format!("Initialize failed: {e}"))?;
+
+    // Create session
+    let session = conn.new_session(
+        acp::NewSessionRequest::new(std::path::PathBuf::from(&workspace))
+    ).await.map_err(|e| format!("New session failed: {e}"))?;
+
+    let session_id = session.session_id.clone();
+
+    // Emit session-init with models/modes/configOptions
+    {
+        let session_val = serde_json::to_value(&session).unwrap_or_default();
+        use tauri::Emitter;
+        let _ = app.emit("session_init", serde_json::json!({
+            "taskId": task_id,
+            "models": session_val.get("models"),
+            "modes": session_val.get("modes"),
+            "configOptions": session_val.get("configOptions"),
+        }));
+        let _ = app.emit("mcp_connecting", Value::Null);
+    }
+
+    // Process commands from the main thread
+    while let Some(cmd) = cmd_rx.recv().await {
+        match cmd {
+            AcpCommand::Prompt(text) => {
+                let prompt_req = acp::PromptRequest::new(
+                    session_id.clone(),
+                    vec![text.into()],
+                );
+                match conn.prompt(prompt_req).await {
+                    Ok(result) => {
+                        let result_val = serde_json::to_value(&result).unwrap_or_default();
+                        let stop_reason = result_val.get("stopReason")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("end_turn")
+                            .to_string();
+                        use tauri::Emitter;
+                        let _ = app.emit("turn_end", serde_json::json!({ "taskId": task_id }));
+                        let _ = app.emit("debug_log", serde_json::json!({
+                            "direction": "in", "category": "response", "type": "turn-end",
+                            "taskId": task_id, "summary": format!("turn ended: {stop_reason}"),
+                            "payload": result_val, "isError": false
+                        }));
+                    }
+                    Err(e) => {
+                        use tauri::Emitter;
+                        let _ = app.emit("debug_log", serde_json::json!({
+                            "direction": "in", "category": "error", "type": "prompt-error",
+                            "taskId": task_id, "summary": e.to_string(),
+                            "payload": { "error": e.to_string() }, "isError": true
+                        }));
+                    }
+                }
+            }
+            AcpCommand::Cancel => {
+                let _ = conn.cancel(acp::CancelNotification::new(session_id.clone())).await;
+            }
+            AcpCommand::SetMode(mode_id) => {
+                let _ = conn.set_session_mode(
+                    acp::SetSessionModeRequest::new(session_id.clone(), mode_id)
+                ).await;
+            }
+            AcpCommand::Kill => break,
+        }
+    }
+
+    // Kill subprocess
+    let _ = child.kill().await;
+    Ok(())
+}
+
+// ── Tauri Commands ─────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateTaskParams {
+    pub name: String,
+    pub workspace: String,
+    pub prompt: String,
+    pub auto_approve: Option<bool>,
+}
+
+#[tauri::command]
+pub fn task_create(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AcpState>,
+    settings_state: tauri::State<'_, crate::commands::settings::SettingsState>,
+    params: CreateTaskParams,
+) -> Result<Task, String> {
+    let id = Uuid::new_v4().to_string();
+    let now = Utc::now().to_rfc3339();
+    let settings = settings_state.0.lock().map_err(|e| e.to_string())?;
+    let auto_approve = params.auto_approve.unwrap_or(settings.settings.auto_approve);
+    let kiro_bin = settings.settings.kiro_bin.clone()
+        .unwrap_or_else(|| "kiro-cli".to_string());
+    drop(settings);
+
+    let task = Task {
+        id: id.clone(),
+        name: params.name,
+        workspace: params.workspace.clone(),
+        status: "running".to_string(),
+        created_at: now.clone(),
+        messages: vec![TaskMessage {
+            role: "user".to_string(),
+            content: params.prompt.clone(),
+            timestamp: now,
+            tool_calls: None,
+            thinking: None,
+        }],
+        pending_permission: None,
+        plan: None,
+        context_usage: None,
+        auto_approve: Some(auto_approve),
+        user_paused: None,
+    };
+
+    state.tasks.lock().unwrap().insert(id.clone(), task.clone());
+
+    let acp_state = Arc::new(AcpState {
+        tasks: Mutex::new(state.tasks.lock().unwrap().clone()),
+        connections: Mutex::new(HashMap::new()),
+        permission_resolvers: Mutex::new(HashMap::new()),
+    });
+
+    // We need a shared reference to the actual state, not a copy.
+    // Use the app handle to get the managed state instead.
+    let handle = spawn_connection(
+        id.clone(),
+        params.workspace,
+        kiro_bin,
+        auto_approve,
+        app.clone(),
+        acp_state,
+    )?;
+
+    // Send initial prompt
+    let _ = handle.cmd_tx.send(AcpCommand::Prompt(params.prompt));
+
+    state.connections.lock().unwrap().insert(id, handle);
+
+    Ok(task)
+}
+
+#[tauri::command]
+pub fn task_list(state: tauri::State<'_, AcpState>) -> Result<Vec<Task>, String> {
+    let tasks = state.tasks.lock().map_err(|e| e.to_string())?;
+    Ok(tasks.values().cloned().collect())
+}
+
+#[tauri::command]
+pub fn task_send_message(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AcpState>,
+    settings_state: tauri::State<'_, crate::commands::settings::SettingsState>,
+    task_id: String,
+    message: String,
+) -> Result<Task, String> {
+    // Push user message
+    {
+        let mut tasks = state.tasks.lock().unwrap();
+        let task = tasks.get_mut(&task_id).ok_or("Task not found")?;
+        task.messages.push(TaskMessage {
+            role: "user".to_string(),
+            content: message.clone(),
+            timestamp: Utc::now().to_rfc3339(),
+            tool_calls: None,
+            thinking: None,
+        });
+        task.status = "running".to_string();
+        use tauri::Emitter;
+        let _ = app.emit("task_update", task.clone());
+    }
+
+    // Check if connection is alive, reconnect if needed
+    let need_reconnect = {
+        let conns = state.connections.lock().unwrap();
+        match conns.get(&task_id) {
+            Some(h) => !h.alive.load(std::sync::atomic::Ordering::SeqCst),
+            None => true,
+        }
+    };
+
+    if need_reconnect {
+        let settings = settings_state.0.lock().map_err(|e| e.to_string())?;
+        let kiro_bin = settings.settings.kiro_bin.clone().unwrap_or_else(|| "kiro-cli".to_string());
+        let auto_approve = settings.settings.auto_approve;
+        drop(settings);
+
+        let workspace = {
+            let tasks = state.tasks.lock().unwrap();
+            tasks.get(&task_id).map(|t| t.workspace.clone()).ok_or("Task not found")?
+        };
+
+        // Destroy old connection
+        if let Some(old) = state.connections.lock().unwrap().remove(&task_id) {
+            let _ = old.cmd_tx.send(AcpCommand::Kill);
+        }
+
+        let acp_state = Arc::new(AcpState::default());
+        let handle = spawn_connection(
+            task_id.clone(), workspace, kiro_bin, auto_approve,
+            app.clone(), acp_state,
+        )?;
+        let _ = handle.cmd_tx.send(AcpCommand::Prompt(message));
+        state.connections.lock().unwrap().insert(task_id.clone(), handle);
+    } else {
+        let conns = state.connections.lock().unwrap();
+        if let Some(h) = conns.get(&task_id) {
+            let _ = h.cmd_tx.send(AcpCommand::Prompt(message));
+        }
+    }
+
+    let tasks = state.tasks.lock().unwrap();
+    tasks.get(&task_id).cloned().ok_or_else(|| "Task not found".to_string())
+}
+
+#[tauri::command]
+pub fn task_pause(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AcpState>,
+    task_id: String,
+) -> Result<Task, String> {
+    if let Some(h) = state.connections.lock().unwrap().get(&task_id) {
+        let _ = h.cmd_tx.send(AcpCommand::Cancel);
+    }
+    let mut tasks = state.tasks.lock().unwrap();
+    let task = tasks.get_mut(&task_id).ok_or("Task not found")?;
+    task.status = "paused".to_string();
+    task.user_paused = Some(true);
+    use tauri::Emitter;
+    let _ = app.emit("task_update", task.clone());
+    Ok(task.clone())
+}
+
+#[tauri::command]
+pub fn task_resume(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AcpState>,
+    task_id: String,
+) -> Result<Task, String> {
+    if let Some(h) = state.connections.lock().unwrap().get(&task_id) {
+        let _ = h.cmd_tx.send(AcpCommand::Prompt("continue".to_string()));
+    }
+    let mut tasks = state.tasks.lock().unwrap();
+    let task = tasks.get_mut(&task_id).ok_or("Task not found")?;
+    task.status = "running".to_string();
+    task.user_paused = Some(false);
+    use tauri::Emitter;
+    let _ = app.emit("task_update", task.clone());
+    Ok(task.clone())
+}
+
+#[tauri::command]
+pub fn task_cancel(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AcpState>,
+    task_id: String,
+) -> Result<(), String> {
+    // Kill connection
+    if let Some(h) = state.connections.lock().unwrap().remove(&task_id) {
+        let _ = h.cmd_tx.send(AcpCommand::Kill);
+    }
+    let mut tasks = state.tasks.lock().unwrap();
+    if let Some(task) = tasks.get_mut(&task_id) {
+        task.status = "cancelled".to_string();
+        use tauri::Emitter;
+        let _ = app.emit("task_update", task.clone());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn task_delete(state: tauri::State<'_, AcpState>, task_id: String) -> Result<(), String> {
+    if let Some(h) = state.connections.lock().unwrap().remove(&task_id) {
+        let _ = h.cmd_tx.send(AcpCommand::Kill);
+    }
+    state.tasks.lock().unwrap().remove(&task_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn task_allow_permission(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AcpState>,
+    task_id: String,
+    request_id: String,
+    option_id: Option<String>,
+) -> Result<(), String> {
+    let resolved_id = option_id.unwrap_or_else(|| {
+        let tasks = state.tasks.lock().unwrap();
+        tasks.get(&task_id)
+            .and_then(|t| t.pending_permission.as_ref())
+            .and_then(|pp| {
+                pp.options.iter().find(|o| o.kind == "allow_once")
+                    .or_else(|| pp.options.iter().find(|o| o.kind == "allow_always"))
+                    .or_else(|| pp.options.first())
+            })
+            .map(|o| o.option_id.clone())
+            .unwrap_or_else(|| "allow".to_string())
+    });
+
+    // Resolve the permission
+    if let Some(tx) = state.permission_resolvers.lock().unwrap().remove(&request_id) {
+        let _ = tx.send(PermissionReply { option_id: resolved_id });
+    }
+
+    // Update task
+    let mut tasks = state.tasks.lock().unwrap();
+    if let Some(task) = tasks.get_mut(&task_id) {
+        task.status = "running".to_string();
+        task.pending_permission = None;
+        use tauri::Emitter;
+        let _ = app.emit("task_update", task.clone());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn task_deny_permission(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AcpState>,
+    task_id: String,
+    request_id: String,
+    option_id: Option<String>,
+) -> Result<(), String> {
+    let resolved_id = option_id.unwrap_or_else(|| {
+        let tasks = state.tasks.lock().unwrap();
+        tasks.get(&task_id)
+            .and_then(|t| t.pending_permission.as_ref())
+            .and_then(|pp| {
+                pp.options.iter().find(|o| o.kind == "reject_once")
+                    .or_else(|| pp.options.iter().find(|o| o.kind == "reject_always"))
+                    .or_else(|| pp.options.first())
+            })
+            .map(|o| o.option_id.clone())
+            .unwrap_or_else(|| "reject".to_string())
+    });
+
+    if let Some(tx) = state.permission_resolvers.lock().unwrap().remove(&request_id) {
+        let _ = tx.send(PermissionReply { option_id: resolved_id });
+    }
+
+    let mut tasks = state.tasks.lock().unwrap();
+    if let Some(task) = tasks.get_mut(&task_id) {
+        task.status = "running".to_string();
+        task.pending_permission = None;
+        use tauri::Emitter;
+        let _ = app.emit("task_update", task.clone());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_mode(
+    state: tauri::State<'_, AcpState>,
+    task_id: String,
+    mode_id: String,
+) -> Result<(), String> {
+    let conns = state.connections.lock().unwrap();
+    let h = conns.get(&task_id).ok_or("No connection for task")?;
+    h.cmd_tx.send(AcpCommand::SetMode(mode_id)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn list_models(
+    app: tauri::AppHandle,
+    settings_state: tauri::State<'_, crate::commands::settings::SettingsState>,
+    kiro_bin: Option<String>,
+) -> Result<Value, String> {
+    let bin = kiro_bin.unwrap_or_else(|| {
+        settings_state.0.lock().unwrap().settings.kiro_bin.clone()
+            .unwrap_or_else(|| "kiro-cli".to_string())
+    });
+
+    // Spawn a temporary connection to get models
+    let (tx, rx) = std::sync::mpsc::channel();
+    let _app_clone = app.clone();
+
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let local = tokio::task::LocalSet::new();
+        let result = local.block_on(&rt, async {
+            let mut child = tokio::process::Command::new(&bin)
+                .arg("acp")
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:{}", std::env::var("PATH").unwrap_or_default()))
+                .spawn()
+                .map_err(|e| format!("Failed to spawn: {e}"))?;
+
+            let stdin = child.stdin.take().ok_or("No stdin")?;
+            let stdout = child.stdout.take().ok_or("No stdout")?;
+
+            struct MinimalClient;
+            #[async_trait::async_trait(?Send)]
+            impl acp::Client for MinimalClient {
+                async fn session_notification(&self, _: acp::SessionNotification) -> acp::Result<()> { Ok(()) }
+                async fn request_permission(&self, _: acp::RequestPermissionRequest) -> acp::Result<acp::RequestPermissionResponse> {
+                    Ok(serde_json::from_value(serde_json::json!({"outcome":{"outcome":"cancelled"}})).unwrap())
+                }
+                async fn ext_notification(&self, _: acp::ExtNotification) -> acp::Result<()> { Ok(()) }
+            }
+
+            let (conn, io_future) = acp::ClientSideConnection::new(
+                MinimalClient, stdin.compat_write(), stdout.compat(),
+                |fut| { tokio::task::spawn_local(fut); },
+            );
+            tokio::task::spawn_local(async { let _ = io_future.await; });
+
+            conn.initialize(
+                acp::InitializeRequest::new(acp::ProtocolVersion::V1)
+                    .client_info(acp::Implementation::new("kirodex", "0.1.0"))
+            ).await.map_err(|e| format!("Init failed: {e}"))?;
+
+            let session = conn.new_session(
+                acp::NewSessionRequest::new(std::env::current_dir().unwrap_or_default())
+            ).await.map_err(|e| format!("Session failed: {e}"))?;
+
+            let session_val = serde_json::to_value(&session).unwrap_or_default();
+            let models = session_val.get("models").cloned().unwrap_or(Value::Null);
+
+            let _ = child.kill().await;
+            Ok::<Value, String>(models)
+        });
+        let _ = tx.send(result);
+    });
+
+    rx.recv().map_err(|e| e.to_string())?.map(|models| {
+        serde_json::json!({
+            "availableModels": models.get("availableModels").unwrap_or(&Value::Array(vec![])),
+            "currentModelId": models.get("currentModelId")
+        })
+    })
+}
+
+#[tauri::command]
+pub fn probe_capabilities(
+    _app: tauri::AppHandle,
+    settings_state: tauri::State<'_, crate::commands::settings::SettingsState>,
+) -> Result<Value, String> {
+    // Reuse list_models logic but just check if it works
+    let bin = settings_state.0.lock().unwrap().settings.kiro_bin.clone()
+        .unwrap_or_else(|| "kiro-cli".to_string());
+
+    let output = std::process::Command::new(&bin)
+        .arg("--version")
+        .output();
+
+    match output {
+        Ok(o) if o.status.success() => Ok(serde_json::json!({ "ok": true })),
+        _ => Ok(serde_json::json!({ "ok": false })),
+    }
+}

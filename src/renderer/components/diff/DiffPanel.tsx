@@ -1,0 +1,293 @@
+import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react'
+import { parsePatchFiles, type FileDiffMetadata } from '@pierre/diffs'
+import { FileDiff, Virtualizer } from '@pierre/diffs/react'
+import { X, GripHorizontal, Columns2, Rows2, WrapText, FileCode, RefreshCw } from 'lucide-react'
+import { useDiffStore } from '@/stores/diffStore'
+import { useTaskStore } from '@/stores/taskStore'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
+
+// ── Theme CSS overrides ──────────────────────────────────────────
+
+const UNSAFE_CSS = `
+[data-diffs-header], [data-diff], [data-file] {
+  --diffs-bg: var(--card) !important;
+  --diffs-bg-addition: color-mix(in srgb, var(--background) 92%, #0dbe4e) !important;
+  --diffs-bg-deletion: color-mix(in srgb, var(--background) 92%, #ff2e3f) !important;
+  --diffs-bg-addition-emphasis: color-mix(in srgb, var(--background) 82%, #0dbe4e) !important;
+  --diffs-bg-deletion-emphasis: color-mix(in srgb, var(--background) 82%, #ff2e3f) !important;
+  --diffs-bg-addition-number: color-mix(in srgb, var(--background) 88%, #0dbe4e) !important;
+  --diffs-bg-deletion-number: color-mix(in srgb, var(--background) 88%, #ff2e3f) !important;
+  --diffs-bg-addition-hover: color-mix(in srgb, var(--background) 86%, #0dbe4e) !important;
+  --diffs-bg-deletion-hover: color-mix(in srgb, var(--background) 86%, #ff2e3f) !important;
+  --diffs-bg-buffer-override: var(--background) !important;
+  --diffs-bg-hover-override: var(--accent) !important;
+  --diffs-bg-context-override: var(--card) !important;
+  --diffs-bg-separator-override: var(--muted) !important;
+  --diffs-fg-number-override: color-mix(in srgb, var(--muted-foreground) 50%, transparent) !important;
+  font-size: 12px !important;
+  line-height: 20px !important;
+}
+[data-diffs-header] {
+  background: var(--card) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+`
+
+// ── File stats helper ────────────────────────────────────────────
+
+function getFileStats(files: FileDiffMetadata[]) {
+  return files.map((f) => {
+    let additions = 0
+    let deletions = 0
+    for (const hunk of f.hunks) {
+      additions += hunk.additionLines
+      deletions += hunk.deletionLines
+    }
+    return { name: f.name.replace(/^[ab]\//, ''), additions, deletions }
+  })
+}
+
+// ── Main panel ───────────────────────────────────────────────────
+
+export const DiffPanel = memo(function DiffPanel() {
+  const diff = useDiffStore((s) => s.diff)
+  const stats = useDiffStore((s) => s.stats)
+  const loading = useDiffStore((s) => s.loading)
+  const fetchDiff = useDiffStore((s) => s.fetchDiff)
+  const setOpen = useDiffStore((s) => s.setOpen)
+
+  const selectedTaskId = useTaskStore((s) => s.selectedTaskId)
+  const taskWorkspace = useTaskStore((s) => selectedTaskId ? s.tasks[selectedTaskId]?.workspace : undefined)
+
+  const [height, setHeight] = useState(400)
+  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified')
+  const [wordWrap, setWordWrap] = useState(true)
+  const [selectedFileIdx, setSelectedFileIdx] = useState<number | null>(null)
+  const dragStartY = useRef<number | null>(null)
+  const dragStartH = useRef(400)
+
+  // Fetch diff when panel opens or task changes
+  useEffect(() => {
+    if (selectedTaskId) {
+      void fetchDiff(selectedTaskId)
+    }
+  }, [selectedTaskId, fetchDiff])
+
+  // Parse
+  const parsedFiles = useMemo(() => {
+    if (!diff.trim()) return []
+    try {
+      return parsePatchFiles(diff).flatMap((p) => p.files)
+    } catch {
+      return []
+    }
+  }, [diff])
+
+  const fileStats = useMemo(() => getFileStats(parsedFiles), [parsedFiles])
+
+  const visibleFiles = useMemo(() => {
+    if (selectedFileIdx !== null && parsedFiles[selectedFileIdx]) {
+      return [parsedFiles[selectedFileIdx]]
+    }
+    return parsedFiles
+  }, [parsedFiles, selectedFileIdx])
+
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+
+  const handleRefresh = useCallback(() => {
+    if (selectedTaskId) void fetchDiff(selectedTaskId)
+  }, [selectedTaskId, fetchDiff])
+
+  // Resize drag
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    dragStartY.current = e.clientY
+    dragStartH.current = height
+    const onMove = (ev: MouseEvent) => {
+      if (dragStartY.current === null) return
+      const delta = dragStartY.current - ev.clientY
+      setHeight(Math.max(200, Math.min(700, dragStartH.current + delta)))
+    }
+    const onUp = () => {
+      dragStartY.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [height])
+
+  return (
+    <aside className="flex shrink-0 flex-col border-t border-border bg-card" style={{ height }}>
+      {/* Drag handle */}
+      <div
+        onMouseDown={onDragStart}
+        className="flex h-2 cursor-row-resize items-center justify-center hover:bg-accent/30 transition-colors"
+      >
+        <GripHorizontal className="size-3 text-muted-foreground/30" />
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-1.5 border-b border-border/50 px-3 py-1 shrink-0">
+        <span className="text-[11px] font-medium text-muted-foreground">Files Changed</span>
+        <span className="text-[10px] text-muted-foreground/50">
+          {parsedFiles.length} file{parsedFiles.length !== 1 ? 's' : ''}
+        </span>
+
+        {stats.additions > 0 && (
+          <span className="text-[11px] font-semibold tabular-nums text-emerald-400">+{stats.additions.toLocaleString()}</span>
+        )}
+        {stats.deletions > 0 && (
+          <span className="text-[11px] font-semibold tabular-nums text-red-400">-{stats.deletions.toLocaleString()}</span>
+        )}
+
+        {!taskWorkspace && (
+          <span className="text-[10px] text-muted-foreground/40 italic">no workspace</span>
+        )}
+
+        <div className="flex-1" />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className={cn(
+                'flex size-5 items-center justify-center rounded text-muted-foreground/50 hover:text-foreground transition-colors',
+                loading && 'animate-spin',
+              )}
+            >
+              <RefreshCw className="size-3" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Refresh diff</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setDiffStyle('unified')}
+              className={cn(
+                'flex size-5 items-center justify-center rounded transition-colors',
+                diffStyle === 'unified' ? 'bg-accent text-foreground' : 'text-muted-foreground/50 hover:text-foreground',
+              )}
+            >
+              <Rows2 className="size-3" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Unified view</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setDiffStyle('split')}
+              className={cn(
+                'flex size-5 items-center justify-center rounded transition-colors',
+                diffStyle === 'split' ? 'bg-accent text-foreground' : 'text-muted-foreground/50 hover:text-foreground',
+              )}
+            >
+              <Columns2 className="size-3" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Split view</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setWordWrap((v) => !v)}
+              className={cn(
+                'flex size-5 items-center justify-center rounded transition-colors',
+                wordWrap ? 'bg-accent text-foreground' : 'text-muted-foreground/50 hover:text-foreground',
+              )}
+            >
+              <WrapText className="size-3" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Toggle word wrap</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="flex size-5 items-center justify-center rounded text-muted-foreground/40 hover:bg-accent hover:text-foreground transition-colors"
+            >
+              <X className="size-3" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Close</TooltipContent>
+        </Tooltip>
+      </div>
+
+      {/* Content */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* File sidebar */}
+        <div className="w-48 shrink-0 border-r overflow-y-auto">
+          <button
+            type="button"
+            onClick={() => setSelectedFileIdx(null)}
+            className={cn(
+              'flex w-full items-center gap-1.5 px-2 py-1 text-[10px] font-medium border-b transition-colors',
+              selectedFileIdx === null ? 'bg-accent/30 text-foreground' : 'text-muted-foreground hover:bg-accent/10',
+            )}
+          >
+            All files ({parsedFiles.length})
+          </button>
+          {fileStats.map((file, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setSelectedFileIdx(i)}
+              className={cn(
+                'flex items-center gap-1 w-full px-2 py-1 text-[10px] hover:bg-accent/10 truncate transition-colors',
+                selectedFileIdx === i && 'bg-accent/30 text-foreground',
+              )}
+            >
+              <FileCode className="size-3 shrink-0 text-muted-foreground/50" />
+              <span className="min-w-0 flex-1 truncate">{file.name.split('/').pop()}</span>
+              <span className="shrink-0 flex gap-1">
+                {file.additions > 0 && <span className="text-emerald-400">+{file.additions}</span>}
+                {file.deletions > 0 && <span className="text-red-400">-{file.deletions}</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Diff viewer */}
+        <div className="flex-1 min-w-0 overflow-auto">
+          {loading ? (
+            <div className="flex h-full items-center justify-center">
+              <RefreshCw className="size-4 animate-spin text-muted-foreground/30" />
+            </div>
+          ) : parsedFiles.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-xs text-muted-foreground/40">
+              {diff.trim() ? 'Could not parse diff' : 'No changes yet'}
+            </div>
+          ) : (
+            <Virtualizer config={{ overscrollSize: 400, intersectionObserverMargin: 800 }}>
+              {visibleFiles.map((fileDiff, i) => (
+                <FileDiff
+                  key={`${fileDiff.name}-${i}`}
+                  fileDiff={fileDiff}
+                  options={{
+                    diffStyle,
+                    lineDiffType: 'word',
+                    overflow: wordWrap ? 'wrap' : 'scroll',
+                    theme: isDark ? 'pierre-dark' : 'pierre-light',
+                    themeType: isDark ? 'dark' : 'light',
+                    unsafeCSS: UNSAFE_CSS,
+                  }}
+                />
+              ))}
+            </Virtualizer>
+          )}
+        </div>
+      </div>
+    </aside>
+  )
+})
