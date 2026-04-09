@@ -86,7 +86,7 @@ export const MessageList = memo(function MessageList({
   }
 
   return (
-    <div ref={parentRef} className="relative min-h-0 flex-1 overflow-auto overscroll-y-contain px-0 py-3 sm:py-4">
+    <div ref={parentRef} data-testid="message-list" className="relative min-h-0 flex-1 overflow-auto overscroll-y-contain px-0 py-3 sm:py-4">
       <div
         className="relative w-full"
         style={{ height: `${virtualizer.getTotalSize()}px` }}

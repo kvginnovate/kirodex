@@ -47,7 +47,7 @@ export const PermissionBanner = memo(function PermissionBanner({
   const sorted = [...options].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind))
 
   return (
-    <div className="mx-auto w-full max-w-2xl shrink-0 px-4 pb-2 sm:px-6 lg:max-w-3xl xl:max-w-4xl">
+    <div data-testid="permission-banner" className="mx-auto w-full max-w-2xl shrink-0 px-4 pb-2 sm:px-6 lg:max-w-3xl xl:max-w-4xl">
       <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2">
         <ShieldAlert className="size-4 shrink-0 text-amber-500 dark:text-amber-400" />
         <p className="min-w-0 flex-1 truncate text-xs text-foreground">

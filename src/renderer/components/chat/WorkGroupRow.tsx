@@ -1,0 +1,11 @@
+import { memo } from 'react'
+import { ToolCallDisplay } from './ToolCallDisplay'
+import type { WorkRow as WorkRowData } from '@/lib/timeline'
+
+export const WorkGroupRow = memo(function WorkGroupRow({ row }: { row: WorkRowData }) {
+  return (
+    <div className="pb-3" data-timeline-row-kind="work">
+      <ToolCallDisplay toolCalls={row.toolCalls} />
+    </div>
+  )
+})

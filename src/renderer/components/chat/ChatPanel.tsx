@@ -99,7 +99,7 @@ export const ChatPanel = memo(function ChatPanel() {
   const inputDisabled = taskStatus === 'cancelled'
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+    <div data-testid="chat-panel" className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {taskPlan && taskPlan.length > 0 && (
           <div className="shrink-0 px-4 pt-2">

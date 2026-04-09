@@ -1,5 +1,60 @@
 # Activity Log
 
+## 2026-04-09 23:25 GST (Dubai, UTC+4)
+
+### Refactored chat panel components into flat single-file structure
+
+Broke down six large components into 22 focused files. Each file has one component, flat directory structure, no nesting.
+
+**ChatInput.tsx (32KB → 17KB):** Extracted five sub-components:
+- `ContextRing.tsx` — circular context usage indicator
+- `ModelPicker.tsx` — model dropdown selector
+- `ModeToggle.tsx` — Chat/Plan mode toggle with inline SVG icons
+- `AutoApproveToggle.tsx` — auto-approve toggle with selector
+- `attachment-utils.ts` — all attachment helpers (processDroppedFile, processNativePath, buildAttachmentMessage, etc.)
+
+**AppHeader.tsx (18KB → 8KB):** Extracted two sub-components:
+- `OpenInEditorGroup.tsx` — Zed/VSCode/Cursor editor opener with ZedIcon
+- `GitActionsGroup.tsx` — commit/push/GitHub actions with GitHubIcon
+
+**TimelineRows.tsx (9.7KB → barrel re-export):** Split into five individual row files:
+- `UserMessageRow.tsx`, `SystemMessageRow.tsx`, `AssistantTextRow.tsx`, `WorkGroupRow.tsx`, `WorkingRow.tsx`
+- `TimelineRows.tsx` is now a barrel re-export so MessageList.tsx imports stay unchanged
+
+**ToolCallDisplay.tsx (12KB → 3KB):** Extracted three files:
+- `tool-call-utils.ts` — icon mapping (kindIcons, getToolIcon)
+- `InlineDiff.tsx` — inline git diff renderer
+- `ToolCallEntry.tsx` — individual tool call row with expand/collapse
+
+**data-testid attributes added to 15 key sections:**
+`chat-panel`, `chat-input`, `send-button`, `pause-button`, `app-header`, `context-ring`, `model-picker`, `mode-toggle`, `auto-approve-toggle`, `message-list`, `tool-call-display`, `tool-call-entry`, `user-message-row`, `assistant-text-row`, `permission-banner`
+
+**Build:** `tsc --noEmit` ✓ (0 errors) | `vite build` ✓ (built in 1.24s)
+
+**Modified files (22):**
+- `src/renderer/components/AppHeader.tsx`
+- `src/renderer/components/OpenInEditorGroup.tsx` (new)
+- `src/renderer/components/GitActionsGroup.tsx` (new)
+- `src/renderer/components/chat/ChatInput.tsx`
+- `src/renderer/components/chat/ChatPanel.tsx`
+- `src/renderer/components/chat/ContextRing.tsx` (new)
+- `src/renderer/components/chat/ModelPicker.tsx` (new)
+- `src/renderer/components/chat/ModeToggle.tsx` (new)
+- `src/renderer/components/chat/AutoApproveToggle.tsx` (new)
+- `src/renderer/components/chat/attachment-utils.ts` (new)
+- `src/renderer/components/chat/TimelineRows.tsx`
+- `src/renderer/components/chat/UserMessageRow.tsx` (new)
+- `src/renderer/components/chat/SystemMessageRow.tsx` (new)
+- `src/renderer/components/chat/AssistantTextRow.tsx` (new)
+- `src/renderer/components/chat/WorkGroupRow.tsx` (new)
+- `src/renderer/components/chat/WorkingRow.tsx` (new)
+- `src/renderer/components/chat/ToolCallDisplay.tsx`
+- `src/renderer/components/chat/ToolCallEntry.tsx` (new)
+- `src/renderer/components/chat/InlineDiff.tsx` (new)
+- `src/renderer/components/chat/tool-call-utils.ts` (new)
+- `src/renderer/components/chat/MessageList.tsx`
+- `src/renderer/components/chat/PermissionBanner.tsx`
+
 ## 2026-04-09 20:50 GST (Dubai, UTC+4)
 
 ### Fixed permission approval crash (Allow Always / Yes)
