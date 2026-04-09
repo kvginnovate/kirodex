@@ -1,13 +1,12 @@
 import { memo } from 'react'
 import { cn } from '@/lib/utils'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { useKiroStore } from '@/stores/kiroStore'
 import type { SlashPanel } from '@/hooks/useSlashAction'
 
 // ── Status dot colors ───────────────────────────────────────────────
 const STATUS_DOT: Record<string, { cls: string; label: string }> = {
-  ready:      { cls: 'bg-emerald-400', label: 'running' },
-  connecting: { cls: 'bg-amber-400 animate-pulse', label: 'loading' },
+  running:    { cls: 'bg-emerald-400', label: 'running' },
+  loading:    { cls: 'bg-amber-400 animate-pulse', label: 'loading' },
   error:      { cls: 'bg-red-400', label: 'error' },
   'needs-auth': { cls: 'bg-red-400', label: 'needs auth' },
 }
@@ -65,12 +64,11 @@ const ModelPickerPanel = memo(function ModelPickerPanel({ onDismiss }: { onDismi
 
 // ── Agent / MCP server list panel ───────────────────────────────────
 const AgentListPanel = memo(function AgentListPanel() {
-  const mcpServers = useKiroStore((s) => s.config.mcpServers ?? [])
-  const enabledServers = mcpServers.filter((s) => s.enabled)
+  const servers = useSettingsStore((s) => s.liveMcpServers)
 
-  if (enabledServers.length === 0) return (
+  if (servers.length === 0) return (
     <PanelShell>
-      <p className="px-3 py-3 text-xs text-muted-foreground/50">No MCP servers configured</p>
+      <p className="px-3 py-3 text-xs text-muted-foreground/50">No MCP servers connected</p>
     </PanelShell>
   )
 
@@ -80,14 +78,13 @@ const AgentListPanel = memo(function AgentListPanel() {
         <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">MCP Servers</span>
       </div>
       <div className="max-h-[200px] overflow-y-auto pb-1">
-        {/* Header row */}
         <div className="grid grid-cols-[1fr_80px_70px] gap-2 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/30">
           <span>Name</span>
           <span>Status</span>
-          <span className="text-right">Transport</span>
+          <span className="text-right">Tools</span>
         </div>
-        {enabledServers.map((server) => {
-          const dot = STATUS_DOT[server.status ?? 'connecting'] ?? STATUS_DOT.connecting
+        {servers.map((server) => {
+          const dot = STATUS_DOT[server.status] ?? STATUS_DOT.loading
           return (
             <div
               key={server.name}
@@ -98,7 +95,9 @@ const AgentListPanel = memo(function AgentListPanel() {
                 <span className={cn('size-1.5 shrink-0 rounded-full', dot.cls)} />
                 <span className="text-[11px]">{dot.label}</span>
               </span>
-              <span className="text-right text-[11px] text-muted-foreground/50">{server.transport}</span>
+              <span className="text-right text-[11px] text-muted-foreground/50">
+                {server.toolCount > 0 ? `${server.toolCount} tools` : '—'}
+              </span>
             </div>
           )
         })}

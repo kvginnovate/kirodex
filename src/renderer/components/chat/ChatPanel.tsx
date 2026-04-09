@@ -61,7 +61,10 @@ export const ChatPanel = memo(function ChatPanel() {
       const projectPrefs = task.workspace ? settings.projectPrefs?.[task.workspace] : undefined
       const autoApprove = projectPrefs?.autoApprove !== undefined ? projectPrefs.autoApprove : settings.autoApprove
       const created = await ipc.createTask({ name: task.name, workspace: task.workspace, prompt: msg, autoApprove })
-      state.upsertTask(created)
+      // Carry over messages from the draft (the server task arrives with messages: [])
+      const draft = useTaskStore.getState().tasks[task.id]
+      const messages = draft?.messages.length ? draft.messages : [userMsg]
+      state.upsertTask({ ...created, messages })
       state.setSelectedTask(created.id)
     } else {
       ipc.sendMessage(task.id, msg)

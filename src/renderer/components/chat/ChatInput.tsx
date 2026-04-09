@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useCallback, useEffect, type KeyboardEvent } from 'react'
+import { memo, useState, useRef, useCallback, useEffect, type KeyboardEvent, type ChangeEvent } from 'react'
 import { ChevronDown, ShieldCheck, ShieldOff } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -9,7 +9,9 @@ import { ipc } from '@/lib/ipc'
 import { SlashCommandPicker } from './SlashCommandPicker'
 import { SlashActionPanel } from './SlashPanels'
 import { BranchSelector } from './BranchSelector'
+import { FileMentionPicker, FileMentionPill } from './FileMentionPicker'
 import { useSlashAction } from '@/hooks/useSlashAction'
+import type { ProjectFile } from '@/types'
 
 // ── Inline SVG icons for modes ──────────────────────────────────────
 const ChatBubbleIcon = () => (
@@ -278,6 +280,9 @@ interface ChatInputProps {
 export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messageCount = 0, isRunning, onSendMessage, onPause, workspace }: ChatInputProps) {
   const [value, setValue] = useState('')
   const [slashIndex, setSlashIndex] = useState(0)
+  const [mentionIndex, setMentionIndex] = useState(0)
+  const [mentionTrigger, setMentionTrigger] = useState<{ start: number; query: string } | null>(null)
+  const [mentionedFiles, setMentionedFiles] = useState<ProjectFile[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const commands = useSettingsStore((s) => s.availableCommands)
   const { panel, dismissPanel, execute } = useSlashAction()
@@ -288,6 +293,29 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
     ? (slashQuery ? commands.filter((c) => c.name.replace(/^\/+/, '').toLowerCase().startsWith(slashQuery.toLowerCase())) : commands)
     : []
   const showPicker = isSlash && filteredCmds.length > 0 && !panel
+  const showFilePicker = mentionTrigger !== null && !showPicker && !panel
+
+  // Detect @ trigger from cursor position
+  const detectMentionTrigger = useCallback((text: string, cursorPos: number) => {
+    // Look backwards from cursor for an unmatched @
+    let i = cursorPos - 1
+    while (i >= 0 && text[i] !== '@' && text[i] !== '\n') {
+      i--
+    }
+    if (i >= 0 && text[i] === '@') {
+      // @ must be at start or preceded by whitespace
+      if (i === 0 || /\s/.test(text[i - 1])) {
+        const query = text.slice(i + 1, cursorPos)
+        // Don't trigger if there's a space already completing it (file already selected)
+        if (!query.includes(' ')) {
+          setMentionTrigger({ start: i, query })
+          setMentionIndex(0)
+          return
+        }
+      }
+    }
+    setMentionTrigger(null)
+  }, [])
 
   const resize = useCallback(() => {
     const el = textareaRef.current
@@ -296,16 +324,35 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`
   }, [])
 
+  const handleChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value
+    setValue(newValue)
+    resize()
+    detectMentionTrigger(newValue, e.target.selectionStart ?? newValue.length)
+  }, [resize, detectMentionTrigger])
+
   const handleSend = useCallback(() => {
     const trimmed = value.trim()
     if (!trimmed || disabled) return
     dismissPanel()
+    // Build the final message with @file references for the backend
+    let message = trimmed
+    if (mentionedFiles.length > 0) {
+      const fileRefs = mentionedFiles.map((f) => `@${f.path}`).join(' ')
+      // Prepend file context if not already in the message
+      const missingRefs = mentionedFiles.filter((f) => !message.includes(`@${f.path}`))
+      if (missingRefs.length > 0) {
+        message = missingRefs.map((f) => `@${f.path}`).join(' ') + ' ' + message
+      }
+    }
     setValue('')
     setSlashIndex(0)
-    onSendMessage(trimmed)
+    setMentionTrigger(null)
+    setMentionedFiles([])
+    onSendMessage(message)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     textareaRef.current?.focus()
-  }, [value, disabled, onSendMessage, dismissPanel])
+  }, [value, disabled, onSendMessage, dismissPanel, mentionedFiles])
 
   const handleSelectCommand = useCallback((cmd: { name: string }) => {
     if (execute(cmd.name)) {
@@ -319,8 +366,50 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
     textareaRef.current?.focus()
   }, [execute])
 
+  const handleSelectFile = useCallback((file: ProjectFile) => {
+    if (!mentionTrigger) return
+    // Replace @query with @filepath in the text
+    const before = value.slice(0, mentionTrigger.start)
+    const after = value.slice(mentionTrigger.start + 1 + mentionTrigger.query.length)
+    const newValue = `${before}@${file.path} ${after}`
+    setValue(newValue)
+    setMentionTrigger(null)
+    setMentionIndex(0)
+    // Track the mentioned file (avoid duplicates)
+    setMentionedFiles((prev) =>
+      prev.some((f) => f.path === file.path) ? prev : [...prev, file]
+    )
+    textareaRef.current?.focus()
+    // Set cursor position after the inserted mention
+    const cursorPos = before.length + 1 + file.path.length + 1
+    requestAnimationFrame(() => {
+      textareaRef.current?.setSelectionRange(cursorPos, cursorPos)
+    })
+  }, [mentionTrigger, value])
+
+  const handleRemoveMention = useCallback((path: string) => {
+    setMentionedFiles((prev) => prev.filter((f) => f.path !== path))
+    // Also remove from text
+    setValue((v) => v.replace(new RegExp(`@${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s?`, 'g'), ''))
+  }, [])
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (panel && e.key === 'Escape') { e.preventDefault(); dismissPanel(); return }
+    // File mention picker navigation
+    if (showFilePicker) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex((i) => i + 1); return }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIndex((i) => Math.max(0, i - 1)); return }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault()
+        // The FileMentionPicker handles onSelect, but we need to trigger it
+        // We'll let the picker's active item be selected via a ref or callback
+        // For now, dispatch a custom event that the picker listens to
+        const event = new CustomEvent('file-mention-select', { detail: { index: mentionIndex } })
+        document.dispatchEvent(event)
+        return
+      }
+      if (e.key === 'Escape') { e.preventDefault(); setMentionTrigger(null); return }
+    }
     if (showPicker) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIndex((i) => i + 1); return }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSlashIndex((i) => Math.max(0, i - 1)); return }
@@ -336,7 +425,15 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
       e.preventDefault()
       handleSend()
     }
-  }, [panel, dismissPanel, showPicker, filteredCmds, slashIndex, handleSend, handleSelectCommand])
+  }, [panel, dismissPanel, showFilePicker, mentionIndex, showPicker, filteredCmds, slashIndex, handleSend, handleSelectCommand])
+
+  // Update mention trigger on cursor movement (click, arrow keys without picker)
+  const handleSelect = useCallback(() => {
+    if (showPicker || showFilePicker) return
+    const el = textareaRef.current
+    if (!el) return
+    detectMentionTrigger(el.value, el.selectionStart ?? el.value.length)
+  }, [showPicker, showFilePicker, detectMentionTrigger])
 
   const canSend = !disabled && value.trim().length > 0
 
@@ -347,6 +444,19 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
           'rounded-[20px] border bg-card transition-colors duration-200',
           'focus-within:border-ring/45 border-border',
         )}>
+          {/* Mentioned files pills */}
+          {mentionedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-3 pt-3 sm:px-4">
+              {mentionedFiles.map((f) => (
+                <FileMentionPill
+                  key={f.path}
+                  path={f.path}
+                  onRemove={() => handleRemoveMention(f.path)}
+                />
+              ))}
+            </div>
+          )}
+
           {/* Text area */}
           <div className="relative px-3 pb-2 pt-3.5 sm:px-4 sm:pt-4" style={{ isolation: 'isolate' }}>
             {showPicker && (
@@ -358,13 +468,23 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
                 activeIndex={slashIndex}
               />
             )}
+            {showFilePicker && (
+              <FileMentionPicker
+                query={mentionTrigger?.query ?? ''}
+                workspace={workspace ?? null}
+                onSelect={handleSelectFile}
+                onDismiss={() => setMentionTrigger(null)}
+                activeIndex={mentionIndex}
+              />
+            )}
             {panel && <SlashActionPanel panel={panel} onDismiss={dismissPanel} />}
             <textarea
               ref={textareaRef}
               value={value}
-              onChange={(e) => { setValue(e.target.value); resize() }}
+              onChange={handleChange}
               onKeyDown={handleKeyDown}
-              placeholder="Ask anything, or press / for commands"
+              onSelect={handleSelect}
+              placeholder="Ask anything, @ to mention files, / for commands"
               disabled={disabled}
               rows={1}
               className="block max-h-[200px] min-h-[70px] w-full resize-none bg-transparent text-[14px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/35"

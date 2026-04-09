@@ -67,8 +67,10 @@ fn parse_steering_frontmatter(content: &str) -> (bool, String) {
         if let Some(end_idx) = content[3..].find("\n---") {
             let fm = &content[3..3 + end_idx];
             body = &content[3 + end_idx + 4..];
-            if fm.contains("alwaysApply:") && fm.contains("true") {
-                always_apply = true;
+            if let Ok(parsed) = serde_yaml::from_str::<serde_yaml::Value>(fm) {
+                always_apply = parsed.get("alwaysApply")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
             }
         }
     }

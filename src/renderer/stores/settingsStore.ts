@@ -20,6 +20,12 @@ export interface SlashCommand {
   inputType?: string
 }
 
+export interface LiveMcpServer {
+  name: string
+  status: string
+  toolCount: number
+}
+
 interface SettingsStore {
   settings: AppSettings
   isLoaded: boolean
@@ -31,6 +37,7 @@ interface SettingsStore {
   currentModeId: string | null
   activeWorkspace: string | null
   availableCommands: SlashCommand[]
+  liveMcpServers: LiveMcpServer[]
   loadSettings: () => Promise<void>
   saveSettings: (settings: AppSettings) => Promise<void>
   fetchModels: (kiroBin?: string) => Promise<void>
@@ -55,6 +62,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   currentModeId: null,
   activeWorkspace: null,
   availableCommands: [],
+  liveMcpServers: [],
 
   loadSettings: async () => {
     try {

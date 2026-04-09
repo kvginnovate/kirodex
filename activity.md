@@ -1,6 +1,119 @@
 # Activity Log
 
 
+## 2026-04-09 14:41 GST (Dubai, UTC+4)
+
+### Rewrote README.md and created CONTRIBUTING.md
+
+- Rewrote README.md: added Codex/T3Code inspiration section, updated architecture to reflect git2/confy/which/serde_yaml/thiserror, added splash screen mention, DMG troubleshooting (`xattr -cr`), clean quick start with Rust install instructions
+- Created CONTRIBUTING.md: dev workflow, conventional commits, code style for TS/Rust/CSS, architecture notes, PR guidelines
+
+**Modified:** `README.md`, `CONTRIBUTING.md` (new)
+
+## 2026-04-09 14:10 GST (Dubai, UTC+4)
+
+### Updated CLAUDE.md and .kiro steering rules with session learnings
+
+**CLAUDE.md updates:**
+- Added `git2`, `thiserror`, `which`, `serde_yaml`, `confy` to tech stack
+- Updated project structure to reflect `error.rs` (new) and updated module descriptions
+- Replaced old "Rust error handling" section with `AppError`/`thiserror` guidance
+- Added "Prefer community crates over shelling out" learning
+- Added seven new learnings: CSP inline scripts, oklch colors, dark theme class, splash screen pattern, cancel before delete, confy config location, git2 injection safety
+
+**New .kiro steering rules:**
+- `rust-crates.md` — Enforces git2, which, confy, serde_yaml, thiserror usage
+- `tauri-patterns.md` — CSP, state management, emit patterns, WebKit compat, dark theme
+
+**Modified:** `CLAUDE.md`, `.kiro/steering/rust-crates.md` (new), `.kiro/steering/tauri-patterns.md` (new)
+
+## 2026-04-09 14:03 GST (Dubai, UTC+4)
+
+### Replaced hardcoded Rust implementations with community crates
+
+Added five crates and rewrote four modules:
+
+**New dependencies:** `git2 0.20`, `thiserror 2`, `which 7`, `serde_yaml 0.9`, `confy 0.6`
+
+**Changes by module:**
+
+- `error.rs` (new) — Shared `AppError` enum with `thiserror`. Has `From` impls for `git2::Error`, `io::Error`, `serde_json::Error`, `confy::ConfyError`, `PoisonError`. Implements `Serialize` for Tauri IPC.
+
+- `git.rs` — Rewrote all nine commands to use `git2::Repository` instead of `Command::new("git")`. `git_detect` uses `Repository::discover()`. Diff uses `diff_tree_to_index` + `diff_index_to_workdir`. Stage uses `index.add_path()`. Commit uses `repo.commit()`. No more PATH dependency.
+
+- `fs_ops.rs` — `detect_kiro_cli` uses `which::which()` instead of `Command::new("which")`. `list_project_files` uses `git2::Repository::statuses()` + index iteration instead of `Command::new("git").args(["ls-files"...])`.
+
+- `kiro_config.rs` — Frontmatter parsing uses `serde_yaml::from_str` instead of string matching. Fixes a bug where `alwaysApply: false` with `true` elsewhere in the YAML would incorrectly match.
+
+- `settings.rs` — Uses `confy::load`/`confy::store` instead of hand-rolled `store_path()`, `load_store()`, `persist_store()`.
+
+- `pty.rs` — Updated to use `AppError` instead of `String` errors.
+
+- `acp.rs` — Left with `String` errors (ACP SDK's own error types + async `!Send` constraints make conversion impractical).
+
+**Build:** `cargo check` ✓ (0 errors, 0 warnings) | `tsc --noEmit` ✓ | `vite build` ✓
+
+**Modified:** `Cargo.toml`, `error.rs` (new), `git.rs`, `fs_ops.rs`, `kiro_config.rs`, `settings.rs`, `pty.rs`, `mod.rs`
+## 2026-04-09 13:47 GST (Dubai, UTC+4)
+
+### Updated README.md with recent features
+
+Updated the Features section with six new items from today's activity: slash commands with inline model picker and MCP server panels, pause button on send while agent runs, click-to-focus file ops in diff panel, collapsible sidebar with ⌘B and skeleton empty state, and Zustand performance optimizations (bail-out guards, rAF batching, extracted streaming selectors). Added `hooks/` directory to the project structure tree.
+
+**Modified:** `README.md`
+
+## 2026-04-09 13:43 GST (Dubai, UTC+4)
+
+### Added best practice learnings to CLAUDE.md
+
+Appended six new engineering learnings to the `## Engineering learnings` section: Tauri v2 state management (use `app.manage()`, avoid cloning state into closures), Rust error handling in Tauri commands (return `Result<T, String>`, no `unwrap()`), React 19 + Zustand selector discipline (always use selectors, `shallow` equality), IPC event cleanup (return unlisten from useEffect), PTY process lifecycle (kill on close, check `try_wait()`), and git command injection prevention (use `Command::arg()` over string interpolation).
+
+**Modified:** `CLAUDE.md`
+
+## 2026-04-09 12:57 GST (Dubai, UTC+4)
+
+### Rewrote CLAUDE.md with engineering learnings
+
+The existing CLAUDE.md was outdated (still referenced Electron). Rewrote from scratch with accurate Tauri v2 project info and added 11 engineering learnings extracted from the activity log and source code: ACP concurrency model (!Send futures on dedicated OS threads), permission resolver state management, notification method normalization, message preservation on backend updates, Zustand performance patterns (bail-out guards, rAF batching, selector extraction, single setState callbacks), dead code traps in component wiring, slash command client-side vs pass-through architecture, forwarding full ACP notification data, window cleanup on close, probe_capabilities guard, and Vite watch ignores.
+
+**Modified:** `CLAUDE.md`
+
+## 2026-04-09 12:54 GST (Dubai, UTC+4)
+
+### Created open-source GitHub README.md
+
+Explored the full project structure, configs, and source files, then wrote a proper README for the repo. Includes: project description, features, prerequisites, getting started, dev commands, build instructions, project structure tree, architecture diagram with module descriptions, kiro-cli auto-detect paths, tech stack table, troubleshooting, contributing guidelines (conventional commits), and MIT license.
+
+**Modified:** `README.md`
+
+
+## 2026-04-09 12:34 GST (Dubai, UTC+4)
+
+### Fixed file focus in diff panel (was wired to wrong component)
+
+The `focusFile` logic was added to `DiffPanel.tsx` which is dead code (never imported). The actual side panel uses `CodePanel` → `DiffViewer`. Moved the `focusFile` effect into `DiffViewer.tsx` so clicking a tool call file op in chat correctly opens the side panel and selects the file.
+
+**Build:** `tsc --noEmit` ✓ | `vite build` ✓
+
+**Modified:** `src/renderer/components/code/DiffViewer.tsx`
+
+## 2026-04-09 12:30 GST (Dubai, UTC+4)
+
+### Click tool call file ops to open diff panel with file selected
+
+Clicking a file edit/read/delete tool call in the chat now opens the diff side panel and scrolls to that file. Added `focusFile` and `openToFile()` to `diffStore`. The DiffPanel watches `focusFile` and sets `selectedFileIdx` to match. App.tsx syncs `diffStore.isOpen` to the local `sidePanelOpen` state so the panel opens automatically.
+
+**Build:** `tsc --noEmit` ✓ | `vite build` ✓
+
+**Modified:** `src/renderer/stores/diffStore.ts`, `src/renderer/components/diff/DiffPanel.tsx`, `src/renderer/components/chat/ToolCallDisplay.tsx`, `src/renderer/App.tsx`
+
+## 2026-04-09 12:25 GST (Dubai, UTC+4)
+
+### Committed and pushed all changes
+
+Committed `47541ea` to `origin/main` (42 files, +1221 / -690). Includes collapsible sidebar (⌘B), empty state skeleton, compact ToolCallDisplay, SlashPanels + useSlashAction hook, expanded slash command icons/descriptions, ACP notification normalization, managed Tauri state in permission handler, probe_running guard, commands_update event, hardened tauriListen cleanup, taskStore re-render optimizations, and theme/README updates.
+
+
 ## 2026-04-09 12:20 GST (Dubai, UTC+4)
 
 ### Added ghost ChatInput to empty state
@@ -139,3 +252,96 @@ The diff panel toggle and terminal toggle were gated behind `{task && ...}`, so 
 Moved the diff panel and terminal toggles outside the task guard so they render whenever `workspace` is available. Git actions (commit/push) stay gated on `task` since they need `task.id` for backend calls. Pause/resume/cancel also stay task-gated.
 
 **Modified:** `src/renderer/components/AppHeader.tsx`
+
+## 2026-04-09 12:19 (Dubai Time) - React component performance audit and fixes
+
+**Scope:** Full audit of all 51 React components using parallel review agents. Applied fixes to the highest-impact findings.
+
+**ChatPanel.tsx (HIGHEST IMPACT):**
+- Extracted `StreamingMessageList` child component that owns the 4 streaming selectors (`streamingChunk`, `liveToolCalls`, `liveThinking`, `messages`). ChatPanel no longer re-renders on every streaming token — only the child does.
+- Hoisted `EMPTY_MESSAGES`, `EMPTY_TOOL_CALLS`, `EMPTY_OPTIONS` as module-level constants to prevent defeating memo on child components.
+- `messageCount` is now a primitive number selector instead of passing the whole messages array.
+
+**TimelineRows.tsx:**
+- Wrapped `McpStatusLines` and `McpActionBanner` in `memo()`. Previously un-memoized and re-rendered every 2.2s from WorkingRow's interval.
+- Fixed WorkingRow leaked `setTimeout`: stored in `fadeRef`, cleared on cleanup.
+
+**TerminalDrawer.tsx:**
+- Wrapped in `memo()` to prevent re-renders from parent.
+- PTY data/exit listeners now subscribe once with `[]` deps using `instancesRef` — no more listener churn on every `setInstances`.
+- `handleDragStart` uses `heightRef` instead of `height` state — stable callback, no re-creation on drag.
+- `handleClose` uses `instancesRef` instead of `instances` closure — stable callback.
+
+**BranchSelector.tsx:**
+- Split double-fetch into mount-only effect (`[]` deps) and open-only effect. No more double IPC call on mount.
+
+**Files modified:**
+- `src/renderer/components/chat/ChatPanel.tsx`
+- `src/renderer/components/chat/TimelineRows.tsx`
+- `src/renderer/components/chat/TerminalDrawer.tsx`
+- `src/renderer/components/chat/BranchSelector.tsx`
+
+**Build:** tsc ✓, vite build ✓ (6.53s)
+
+## 2026-04-09 12:29 (Dubai Time) - Forward MCP server data with toolCount from ACP
+
+**Problem:** The `commands/available` ACP notification includes `mcpServers` with `name`, `status`, and `toolCount` (e.g., `{"name": "slack", "status": "running", "toolCount": 8}`), but the Rust backend only forwarded the `commands` array and dropped `mcpServers`. The `/agent` slash panel was reading from `kiroStore` (static config file) which has no `toolCount` or live status.
+
+**Fix:**
+- `acp.rs`: Forward `mcpServers` alongside `commands` in the `commands_update` event
+- `ipc.ts`: Updated `onCommandsUpdate` type to include `mcpServers`
+- `settingsStore.ts`: Added `LiveMcpServer` type and `liveMcpServers` state
+- `taskStore.ts`: `onCommandsUpdate` listener now stores `liveMcpServers`
+- `SlashPanels.tsx`: `AgentListPanel` reads from `liveMcpServers` (live ACP data with toolCount) instead of `kiroStore` (static config). Shows "8 tools", "2 tools", etc.
+
+**Files modified:**
+- `src-tauri/src/commands/acp.rs`
+- `src/renderer/lib/ipc.ts`
+- `src/renderer/stores/settingsStore.ts`
+- `src/renderer/stores/taskStore.ts`
+- `src/renderer/components/chat/SlashPanels.tsx`
+
+**Build:** tsc ✓, vite build ✓ (5.62s)
+
+## 2026-04-09 12:58 (Dubai Time) - Fix messages lost when draft replaced by server task
+
+**Root cause:** When a draft thread sends its first message, `ipc.createTask()` returns a server-created task with a NEW ID and `messages: []`. `upsertTask(created)` looks up `prev = state.tasks[created.id]` which is `undefined` (the draft has a different ID), so the message preservation logic falls through to `messages = []`. The user message and all subsequent assistant responses are lost.
+
+**Fix:** In `ChatPanel.handleSendMessage`, after `createTask` returns, read the draft's current messages from the store and carry them over: `upsertTask({ ...created, messages })`.
+
+**Files modified:**
+- `src/renderer/components/chat/ChatPanel.tsx`
+
+**Build:** tsc ✓, vite build ✓ (6.35s)
+
+## 2026-04-09 13:01 (Dubai Time) - Fix messages wiped by task_update events with partial message list
+
+**Root cause:** The Rust backend's `Task` struct accumulates user messages but never assistant responses, tool calls, or system messages. Every `task_update` event sends `messages: [user_msg_1, user_msg_2, ...]` — a partial list. The previous fix only preserved messages when `messages: []`, but the backend sends `messages.length > 0` (user messages only), which overwrote the frontend's full conversation history.
+
+**Fix:** Changed `upsertTask` message logic from "preserve when empty" to "preserve when frontend has more messages than backend":
+```
+const messages = prev && prev.messages.length >= task.messages.length
+  ? prev.messages
+  : task.messages
+```
+The frontend always has more messages (assistant responses, tool calls, system messages). The backend's messages only win for brand-new tasks the frontend hasn't seen.
+
+**Files modified:**
+- `src/renderer/stores/taskStore.ts`
+
+**Build:** tsc ✓, vite build ✓ (5.89s)
+
+## 2026-04-09 13:05 (Dubai Time) - Strip messages from backend task_update events entirely
+
+**Problem:** Tool calls, assistant responses, and system messages were being lost because backend `task_update` events send partial message lists (user messages only). Even the `>=` length check wasn't enough because the backend could send 1-2 user messages which is `>= 0` when the frontend had 0 messages at turn start.
+
+**Fix:** Two changes:
+1. `onTaskUpdate` listener now strips messages before calling `upsertTask`: `{ ...task, messages: [] }`. The backend never has useful message data for the frontend.
+2. `upsertTask` uses `>` instead of `>=` for the length check, so frontend callers (onTurnEnd, handleSendMessage) can still append messages normally.
+
+The frontend is now the sole source of truth for conversation history. Backend events only update status, pendingPermission, plan, and contextUsage.
+
+**Files modified:**
+- `src/renderer/stores/taskStore.ts`
+
+**Build:** tsc ✓, vite build ✓ (5.27s)

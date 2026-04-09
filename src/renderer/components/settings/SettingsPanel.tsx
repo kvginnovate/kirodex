@@ -267,6 +267,29 @@ export function SettingsPanel() {
                   />
                 </button>
               </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground">Respect .gitignore</p>
+                  <p className="text-[10px] text-muted-foreground/60">
+                    Hide .gitignore'd files from @ mentions file picker
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDraft({ ...draft, respectGitignore: !(draft.respectGitignore ?? true) })}
+                  className={cn(
+                    'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors',
+                    (draft.respectGitignore ?? true) ? 'bg-primary' : 'bg-input',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'pointer-events-none block h-3.5 w-3.5 rounded-full bg-background shadow-sm transition-transform',
+                      (draft.respectGitignore ?? true) ? 'translate-x-4' : 'translate-x-0.5',
+                    )}
+                  />
+                </button>
+              </div>
             </div>
           )}
 

@@ -5,6 +5,8 @@ use std::io::{Read, Write};
 use std::sync::Mutex;
 use tauri::Emitter;
 
+use super::error::AppError;
+
 #[derive(Serialize, Clone)]
 struct PtyDataPayload {
     id: String,
@@ -37,7 +39,7 @@ pub fn pty_create(
     cwd: String,
     cols: Option<u16>,
     rows: Option<u16>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let cols = cols.unwrap_or(80);
     let rows = rows.unwrap_or(24);
     let pty_system = native_pty_system();
@@ -48,13 +50,13 @@ pub fn pty_create(
             pixel_width: 0,
             pixel_height: 0,
         })
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
     let mut cmd = CommandBuilder::new(&shell);
     cmd.cwd(&cwd);
-    let _child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
-    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
+    let _child = pair.slave.spawn_command(cmd).map_err(|e| AppError::Other(e.to_string()))?;
+    let mut reader = pair.master.try_clone_reader().map_err(|e| AppError::Other(e.to_string()))?;
+    let writer = pair.master.take_writer().map_err(|e| AppError::Other(e.to_string()))?;
     let event_id = id.clone();
     std::thread::spawn(move || {
         let mut buf = [0u8; 4096];
@@ -82,17 +84,18 @@ pub fn pty_create(
         master: pair.master,
         writer,
     };
-    let mut ptys = state.0.lock().map_err(|e| e.to_string())?;
+    let mut ptys = state.0.lock().map_err(|_| AppError::LockPoisoned)?;
     ptys.insert(id, instance);
     Ok(())
 }
 
 #[tauri::command]
-pub fn pty_write(state: tauri::State<'_, PtyState>, id: String, data: String) -> Result<(), String> {
-    let mut ptys = state.0.lock().map_err(|e| e.to_string())?;
-    let instance = ptys.get_mut(&id).ok_or("PTY not found")?;
-    instance.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
-    instance.writer.flush().map_err(|e| e.to_string())
+pub fn pty_write(state: tauri::State<'_, PtyState>, id: String, data: String) -> Result<(), AppError> {
+    let mut ptys = state.0.lock().map_err(|_| AppError::LockPoisoned)?;
+    let instance = ptys.get_mut(&id).ok_or_else(|| AppError::Other("PTY not found".to_string()))?;
+    instance.writer.write_all(data.as_bytes())?;
+    instance.writer.flush()?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -101,9 +104,9 @@ pub fn pty_resize(
     id: String,
     cols: u16,
     rows: u16,
-) -> Result<(), String> {
-    let ptys = state.0.lock().map_err(|e| e.to_string())?;
-    let instance = ptys.get(&id).ok_or("PTY not found")?;
+) -> Result<(), AppError> {
+    let ptys = state.0.lock().map_err(|_| AppError::LockPoisoned)?;
+    let instance = ptys.get(&id).ok_or_else(|| AppError::Other("PTY not found".to_string()))?;
     instance
         .master
         .resize(PtySize {
@@ -112,12 +115,12 @@ pub fn pty_resize(
             pixel_width: 0,
             pixel_height: 0,
         })
-        .map_err(|e| e.to_string())
+        .map_err(|e| AppError::Other(e.to_string()))
 }
 
 #[tauri::command]
-pub fn pty_kill(state: tauri::State<'_, PtyState>, id: String) -> Result<(), String> {
-    let mut ptys = state.0.lock().map_err(|e| e.to_string())?;
-    ptys.remove(&id).ok_or("PTY not found")?;
+pub fn pty_kill(state: tauri::State<'_, PtyState>, id: String) -> Result<(), AppError> {
+    let mut ptys = state.0.lock().map_err(|_| AppError::LockPoisoned)?;
+    ptys.remove(&id).ok_or_else(|| AppError::Other("PTY not found".to_string()))?;
     Ok(())
 }

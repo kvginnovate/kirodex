@@ -61,6 +61,7 @@ export const DiffPanel = memo(function DiffPanel() {
   const toggleFileSelection = useDiffStore((s) => s.toggleFileSelection)
   const stageSelected = useDiffStore((s) => s.stageSelected)
   const revertSelected = useDiffStore((s) => s.revertSelected)
+  const focusFile = useDiffStore((s) => s.focusFile)
 
   const selectedTaskId = useTaskStore((s) => s.selectedTaskId)
   const taskWorkspace = useTaskStore((s) => selectedTaskId ? s.tasks[selectedTaskId]?.workspace : undefined)
@@ -90,6 +91,16 @@ export const DiffPanel = memo(function DiffPanel() {
   }, [diff])
 
   const fileStats = useMemo(() => getFileStats(parsedFiles), [parsedFiles])
+
+  // Focus a specific file when requested via store
+  useEffect(() => {
+    if (!focusFile || parsedFiles.length === 0) return
+    const idx = parsedFiles.findIndex((f) =>
+      f.name.replace(/^[ab]\//, '').includes(focusFile)
+    )
+    if (idx >= 0) setSelectedFileIdx(idx)
+    useDiffStore.setState({ focusFile: null })
+  }, [focusFile, parsedFiles])
 
   const visibleFiles = useMemo(() => {
     if (selectedFileIdx !== null && parsedFiles[selectedFileIdx]) {

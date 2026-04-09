@@ -15,6 +15,7 @@ import { DebugPanel } from '@/components/debug/DebugPanel'
 import { useTaskStore, initTaskListeners } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useDebugStore } from '@/stores/debugStore'
+import { useDiffStore } from '@/stores/diffStore'
 import { useKiroStore, initKiroListeners } from '@/stores/kiroStore'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -79,16 +80,22 @@ function EmptyState() {
 
       {/* New thread CTA over the skeleton */}
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none">
-        <p className="text-sm text-muted-foreground/50 select-none">Start a conversation with Kiro</p>
+        <p className="text-sm text-muted-foreground/50 select-none">
+          {projects.length > 0 ? 'Start a conversation with Kiro' : 'Open a project folder to get started'}
+        </p>
         <button
           type="button"
           onClick={handleNew}
           className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-accent"
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
-            <line x1="7" y1="2" x2="7" y2="12" /><line x1="2" y1="7" x2="12" y2="7" />
+            {projects.length > 0 ? (
+              <><line x1="7" y1="2" x2="7" y2="12" /><line x1="2" y1="7" x2="12" y2="7" /></>
+            ) : (
+              <><path d="M12.5 10.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h3.5l1.5 2h4a1 1 0 0 1 1 1z" /></>
+            )}
           </svg>
-          New Thread
+          {projects.length > 0 ? 'New Thread' : 'Start New Project'}
         </button>
       </div>
     </div>
@@ -108,6 +115,12 @@ export function App() {
   }, [selectedTaskId])
   const [sidePanelOpen, setSidePanelOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
+  // Sync diffStore.isOpen → sidePanelOpen (for openToFile)
+  const diffIsOpen = useDiffStore((s) => s.isOpen)
+  useEffect(() => {
+    if (diffIsOpen && !sidePanelOpen) setSidePanelOpen(true)
+  }, [diffIsOpen])
 
   useEffect(() => {
     useTaskStore.getState().loadTasks()

@@ -295,7 +295,8 @@ impl acp::Client for KirodexClient {
         if method_normalized == "kiro.dev/commands/available" {
             let _ = self.app.emit("commands_update", serde_json::json!({
                 "taskId": self.task_id,
-                "commands": params.get("commands").cloned().unwrap_or(Value::Array(vec![]))
+                "commands": params.get("commands").cloned().unwrap_or(Value::Array(vec![])),
+                "mcpServers": params.get("mcpServers").cloned().unwrap_or(Value::Array(vec![]))
             }));
         }
 

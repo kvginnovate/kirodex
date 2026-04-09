@@ -110,7 +110,24 @@ export interface AppSettings {
   fontSize: number
   defaultModel?: string | null
   autoApprove?: boolean
+  respectGitignore?: boolean
   projectPrefs?: Record<string, ProjectPrefs>
+}
+
+export interface ProjectFile {
+  path: string
+  name: string
+  dir: string
+  isDir: boolean
+  ext: string
+  /** Git status: "M" modified, "A" added/new, "D" deleted, "R" renamed, "" clean */
+  gitStatus?: string
+  /** Lines added in working copy (0 if unchanged) */
+  linesAdded?: number
+  /** Lines deleted in working copy (0 if unchanged) */
+  linesDeleted?: number
+  /** File modification time as Unix epoch seconds */
+  modifiedAt: number
 }
 
 // ── Kiro Configuration Types ──────────────────────────────────────

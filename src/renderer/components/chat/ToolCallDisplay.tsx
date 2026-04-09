@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import type { ToolCall, ToolKind } from '@/types'
 import { cn } from '@/lib/utils'
+import { useDiffStore } from '@/stores/diffStore'
 
 const kindIcons: Record<ToolKind, LucideIcon> = {
   read: FileText,
@@ -50,14 +51,24 @@ const ToolCallEntry = memo(function ToolCallEntry({ toolCall }: { toolCall: Tool
     toolCall.rawOutput !== undefined
   )
 
+  const isFileOp = toolCall.kind === 'edit' || toolCall.kind === 'read' || toolCall.kind === 'delete'
+
+  const handleClick = () => {
+    if (isFileOp && firstPath) {
+      useDiffStore.getState().openToFile(firstPath)
+    } else if (hasContent) {
+      setExpanded(!expanded)
+    }
+  }
+
   return (
     <div>
       <button
-        onClick={() => hasContent && setExpanded(!expanded)}
+        onClick={handleClick}
         className={cn(
           'flex w-full items-center gap-2 rounded-md px-2 py-1 text-[11px] text-left transition-colors',
-          hasContent && 'hover:bg-accent/10 cursor-pointer',
-          !hasContent && 'cursor-default',
+          (hasContent || (isFileOp && firstPath)) && 'hover:bg-accent/10 cursor-pointer',
+          !(hasContent || (isFileOp && firstPath)) && 'cursor-default',
         )}
       >
         <Icon className={cn(
@@ -151,7 +162,7 @@ interface ToolCallDisplayProps {
 }
 
 export const ToolCallDisplay = memo(function ToolCallDisplay({ toolCalls }: ToolCallDisplayProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const [showAll, setShowAll] = useState(false)
 
   if (!toolCalls.length) return null

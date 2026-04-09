@@ -51,6 +51,7 @@ pub fn run() {
             fs_ops::pick_folder,
             fs_ops::open_in_editor,
             fs_ops::open_url,
+            fs_ops::list_project_files,
             // Git
             git::git_detect,
             git::git_list_branches,

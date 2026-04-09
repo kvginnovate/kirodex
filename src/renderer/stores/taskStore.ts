@@ -96,10 +96,12 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   upsertTask: (task) =>
     set((state) => {
       const prev = state.tasks[task.id]
-      // Preserve locally-accumulated messages when the backend sends an empty array
-      const messages = task.messages.length > 0
-        ? task.messages
-        : (prev?.messages ?? [])
+      // Always preserve existing messages when incoming has fewer.
+      // Backend task_update events arrive with messages: [] (stripped at listener).
+      // Only frontend callers (onTurnEnd, handleSendMessage) pass real messages.
+      const messages = prev && prev.messages.length > task.messages.length
+        ? prev.messages
+        : task.messages
       // Bail out if nothing meaningful changed
       if (prev
         && prev.status === task.status
@@ -275,7 +277,10 @@ export function initTaskListeners(): () => void {
   useTaskStore.getState().setConnected(true)
 
   const unsub1 = ipc.onTaskUpdate((task) => {
-    useTaskStore.getState().upsertTask(task)
+    // Strip messages from backend updates — the frontend is the sole source of truth
+    // for conversation history. The backend only tracks user messages, never assistant
+    // responses, tool calls, or system messages.
+    useTaskStore.getState().upsertTask({ ...task, messages: [] })
   })
 
   // Batch streaming chunks with rAF to reduce state updates
@@ -404,8 +409,11 @@ export function initTaskListeners(): () => void {
     }
   })
 
-  const unsub11 = ipc.onCommandsUpdate(({ commands }) => {
-    useSettingsStore.setState({ availableCommands: commands })
+  const unsub11 = ipc.onCommandsUpdate(({ commands, mcpServers }) => {
+    useSettingsStore.setState({
+      availableCommands: commands,
+      ...(mcpServers ? { liveMcpServers: mcpServers } : {}),
+    })
   })
 
   const unsub12 = ipc.onTaskError(({ taskId, message }) => {

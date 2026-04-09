@@ -13,6 +13,7 @@ interface DiffStore {
   stats: DiffStats
   loading: boolean
   selectedFiles: Set<string>
+  focusFile: string | null
   toggleOpen: () => void
   setOpen: (open: boolean) => void
   fetchDiff: (taskId: string) => Promise<void>
@@ -21,6 +22,7 @@ interface DiffStore {
   clearSelection: () => void
   stageSelected: (taskId: string) => Promise<void>
   revertSelected: (taskId: string) => Promise<void>
+  openToFile: (filePath: string) => void
 }
 
 function computeStats(diff: string): DiffStats {
@@ -41,6 +43,7 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
   stats: { additions: 0, deletions: 0, fileCount: 0 },
   loading: false,
   selectedFiles: new Set<string>(),
+  focusFile: null,
 
   toggleOpen: () => set((s) => ({ isOpen: !s.isOpen })),
   setOpen: (open) => set({ isOpen: open }),
@@ -79,4 +82,6 @@ export const useDiffStore = create<DiffStore>((set, get) => ({
     set({ selectedFiles: new Set() })
     await get().fetchDiff(taskId)
   },
+
+  openToFile: (filePath: string) => set({ isOpen: true, focusFile: filePath }),
 }))

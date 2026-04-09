@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::PathBuf;
 use std::sync::Mutex;
+
+use super::error::AppError;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
@@ -37,12 +37,15 @@ pub struct AppSettings {
     pub default_model: Option<String>,
     #[serde(default)]
     pub auto_approve: bool,
+    #[serde(default = "default_true")]
+    pub respect_gitignore: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_prefs: Option<std::collections::HashMap<String, ProjectPrefs>>,
 }
 
 fn default_kiro_bin() -> String { "kiro-cli".to_string() }
 fn default_font_size() -> u32 { 13 }
+fn default_true() -> bool { true }
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -52,6 +55,7 @@ impl Default for AppSettings {
             font_size: default_font_size(),
             default_model: None,
             auto_approve: false,
+            respect_gitignore: true,
             project_prefs: None,
         }
     }
@@ -65,36 +69,23 @@ pub struct StoreData {
 
 pub struct SettingsState(pub Mutex<StoreData>);
 
+const APP_NAME: &str = "kirodex";
+
 impl Default for SettingsState {
     fn default() -> Self {
-        let data = load_store().unwrap_or_default();
+        let data = confy::load::<StoreData>(APP_NAME, None).unwrap_or_default();
         Self(Mutex::new(data))
     }
 }
 
-fn store_path() -> PathBuf {
-    let dir = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-    dir.join("kirodex").join("kirodex-store.json")
-}
-
-fn load_store() -> Option<StoreData> {
-    let path = store_path();
-    let content = fs::read_to_string(path).ok()?;
-    serde_json::from_str(&content).ok()
-}
-
-fn persist_store(data: &StoreData) -> Result<(), String> {
-    let path = store_path();
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    let json = serde_json::to_string_pretty(data).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())
+fn persist_store(data: &StoreData) -> Result<(), AppError> {
+    confy::store(APP_NAME, None, data)?;
+    Ok(())
 }
 
 #[tauri::command]
-pub fn get_settings(state: tauri::State<'_, SettingsState>) -> Result<AppSettings, String> {
-    let store = state.0.lock().map_err(|e| e.to_string())?;
+pub fn get_settings(state: tauri::State<'_, SettingsState>) -> Result<AppSettings, AppError> {
+    let store = state.0.lock()?;
     Ok(store.settings.clone())
 }
 
@@ -102,8 +93,8 @@ pub fn get_settings(state: tauri::State<'_, SettingsState>) -> Result<AppSetting
 pub fn save_settings(
     state: tauri::State<'_, SettingsState>,
     settings: AppSettings,
-) -> Result<(), String> {
-    let mut store = state.0.lock().map_err(|e| e.to_string())?;
+) -> Result<(), AppError> {
+    let mut store = state.0.lock()?;
     store.settings = settings;
     persist_store(&store)
 }

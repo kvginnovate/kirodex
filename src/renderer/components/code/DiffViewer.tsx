@@ -1,9 +1,10 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { parsePatchFiles, type FileDiffMetadata } from '@pierre/diffs'
 import { FileDiff, Virtualizer } from '@pierre/diffs/react'
 import { Columns2, Rows2, WrapText, FileCode, ChevronDown, ChevronRight, Plus, Undo2, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ipc } from '@/lib/ipc'
+import { useDiffStore } from '@/stores/diffStore'
 
 // ── Theme CSS overrides to integrate @pierre/diffs with our design system ──
 
@@ -187,6 +188,17 @@ export function DiffViewer({ diff, taskId, workspace, onRefreshDiff }: DiffViewe
   const fileStats = useMemo(() => getFileStats(parsedFiles), [parsedFiles])
   const totalAdditions = useMemo(() => fileStats.reduce((s, f) => s + f.additions, 0), [fileStats])
   const totalDeletions = useMemo(() => fileStats.reduce((s, f) => s + f.deletions, 0), [fileStats])
+
+  // Focus a specific file when requested via diffStore.openToFile()
+  const focusFile = useDiffStore((s) => s.focusFile)
+  useEffect(() => {
+    if (!focusFile || parsedFiles.length === 0) return
+    const idx = parsedFiles.findIndex((f) =>
+      f.name.replace(/^[ab]\//, '').includes(focusFile)
+    )
+    if (idx >= 0) setSelectedFileIdx(idx)
+    useDiffStore.setState({ focusFile: null })
+  }, [focusFile, parsedFiles])
 
   // Determine which file indices to show
   const visibleIndices = useMemo(() => {

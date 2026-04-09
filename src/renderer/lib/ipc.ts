@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { AgentTask, AppSettings, KiroConfig, ToolCall, PlanStep, DebugLogEntry } from '@/types'
+import type { AgentTask, AppSettings, KiroConfig, ToolCall, PlanStep, DebugLogEntry, ProjectFile } from '@/types'
 
 type UnsubscribeFn = () => void
 
@@ -99,6 +99,8 @@ export const ipc = {
     invoke('get_kiro_config', { projectPath }),
   readFile: (filePath: string): Promise<string | null> =>
     invoke('read_text_file', { path: filePath }),
+  listProjectFiles: (root: string, respectGitignore: boolean = true): Promise<ProjectFile[]> =>
+    invoke('list_project_files', { root, respectGitignore }),
   openUrl: (url: string): Promise<void> =>
     invoke('open_url', { url }),
   // Event listeners
@@ -130,7 +132,7 @@ export const ipc = {
     tauriListen('mcp_update', cb),
   onMcpConnecting: (cb: () => void): UnsubscribeFn =>
     tauriListen('mcp_connecting', cb),
-  onCommandsUpdate: (cb: (data: { taskId: string; commands: Array<{ name: string; description?: string; inputType?: string }> }) => void): UnsubscribeFn =>
+  onCommandsUpdate: (cb: (data: { taskId: string; commands: Array<{ name: string; description?: string; inputType?: string }>; mcpServers?: Array<{ name: string; status: string; toolCount: number }> }) => void): UnsubscribeFn =>
     tauriListen('commands_update', cb),
   onTaskError: (cb: (data: { taskId: string; message: string }) => void): UnsubscribeFn =>
     tauriListen('task_error', cb),
