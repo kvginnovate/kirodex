@@ -497,7 +497,7 @@ export const TaskSidebar = memo(function TaskSidebar() {
                       <Plus className="size-3.5" aria-hidden />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="right">Add project folder</TooltipContent>
+                  <TooltipContent side="right">Import project folder</TooltipContent>
                 </Tooltip>
               </div>
             </div>
@@ -505,7 +505,7 @@ export const TaskSidebar = memo(function TaskSidebar() {
             <ul className="flex w-full min-w-0 flex-col gap-1">
               {projectList.length === 0 && (
                 <p className="px-3 py-6 text-center text-[11px] text-muted-foreground">
-                  No projects yet — click + to add a folder
+                  No projects yet — click + to import a folder
                 </p>
               )}
               {projectList.map((project) => (

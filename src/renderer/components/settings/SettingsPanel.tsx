@@ -463,19 +463,22 @@ export function SettingsPanel() {
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 border-t border-border px-6 py-4">
-          <button
-            onClick={() => setOpen(false)}
-            className="flex-1 rounded-md border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-accent"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="flex-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Save
-          </button>
+        <div className="border-t border-border px-6 py-4">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setOpen(false)}
+              className="flex-1 rounded-md border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-accent"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Save
+            </button>
+          </div>
+          <p className="mt-3 text-center text-[10px] text-muted-foreground/50">Kirodex v0.6.0</p>
         </div>
       </div>
     </div>

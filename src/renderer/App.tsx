@@ -82,7 +82,7 @@ function EmptyState() {
       {/* New thread CTA over the skeleton */}
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none">
         <p className="text-sm text-muted-foreground/50 select-none">
-          {projects.length > 0 ? 'Start a conversation with Kiro' : 'Open a project folder to get started'}
+          {projects.length > 0 ? 'Start a conversation with Kiro' : 'Import a project folder to get started'}
         </p>
         <button
           type="button"
@@ -96,7 +96,7 @@ function EmptyState() {
               <><path d="M12.5 10.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h3.5l1.5 2h4a1 1 0 0 1 1 1z" /></>
             )}
           </svg>
-          {projects.length > 0 ? 'New Thread' : 'Start New Project'}
+          {projects.length > 0 ? 'New Thread' : 'Import Project'}
         </button>
       </div>
     </div>
@@ -157,7 +157,7 @@ export function App() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex h-screen flex-col bg-background text-foreground">
+      <div className="flex h-full flex-col bg-background text-foreground">
         {/* Top-level breadcrumb header */}
         <ErrorBoundary>
           <AppHeader

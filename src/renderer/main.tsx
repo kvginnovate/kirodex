@@ -1,7 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './App'
-import '@fontsource-variable/dm-sans'
 import '../tailwind.css'
 
 // Apply dark theme immediately to prevent white flash
@@ -52,3 +51,16 @@ if (splash) {
   splash.style.opacity = '0'
   splash.addEventListener('transitionend', () => splash.remove(), { once: true })
 }
+
+// Force a re-layout after mount — Tauri's WebKit webview can miscalculate
+// the initial viewport height, clipping the bottom. A brief resize toggle
+// forces the layout engine to recalculate correctly (same effect as opening
+// the debug panel, which triggers a re-layout and fixes the clipping).
+requestAnimationFrame(() => {
+  const root = document.getElementById('root')
+  if (root) {
+    root.style.display = 'none'
+    void root.offsetHeight // force reflow
+    root.style.display = ''
+  }
+})

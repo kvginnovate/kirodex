@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useTaskStore } from '@/stores/taskStore'
 import { ipc } from '@/lib/ipc'
 
-/** Opens a folder picker and adds the selected folder as a project (no task created). */
+/** Opens a folder picker and imports the selected folder as a project (no task created). */
 export function NewProjectSheet() {
   const open = useTaskStore((s) => s.isNewProjectOpen)
   const setOpen = useTaskStore((s) => s.setNewProjectOpen)
