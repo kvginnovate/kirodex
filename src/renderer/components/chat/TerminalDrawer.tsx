@@ -176,7 +176,7 @@ export const TerminalDrawer = memo(function TerminalDrawer({ cwd }: TerminalDraw
       style={{ height }}
     >
       <div
-        className="absolute inset-x-0 top-0 z-20 h-1.5 cursor-row-resize"
+        className="absolute inset-x-0 top-0 z-20 h-1.5 cursor-row-resize hover:bg-primary/20 active:bg-primary/30 transition-colors"
         onMouseDown={handleDragStart}
       />
 

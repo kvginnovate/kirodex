@@ -358,7 +358,7 @@ export function DiffViewer({ diff, taskId, workspace, onRefreshDiff }: DiffViewe
             {/* Drag handle */}
             <div
               onMouseDown={handleSidebarDragStart}
-              className="w-1 shrink-0 cursor-col-resize border-r hover:bg-accent/40 transition-colors"
+              className="w-1 shrink-0 cursor-col-resize border-r hover:bg-primary/20 active:bg-primary/30 transition-colors"
             />
           </div>
         )}

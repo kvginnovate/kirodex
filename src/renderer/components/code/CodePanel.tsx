@@ -43,7 +43,7 @@ export function CodePanel({ onClose }: CodePanelProps) {
       {!isExpanded && (
         <div
           onMouseDown={handleResizeStart}
-          className="w-1 cursor-col-resize hover:bg-accent/40 shrink-0"
+          className="w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 shrink-0 transition-colors"
         />
       )}
 
