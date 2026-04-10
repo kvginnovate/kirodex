@@ -74,7 +74,7 @@ export const ToolCallEntry = memo(function ToolCallEntry({ toolCall }: { toolCal
         )} />
         <span className={cn(
           'flex-1 truncate',
-          isRunning ? 'text-foreground' : 'text-muted-foreground/70',
+          isRunning ? 'text-foreground' : 'text-muted-foreground/50',
         )}>
           {toolCall.title}
         </span>
