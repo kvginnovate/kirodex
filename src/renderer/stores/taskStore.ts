@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { AgentTask, ActivityEntry, ToolCall, PlanStep } from '@/types'
 import { ipc } from '@/lib/ipc'
+import * as historyStore from '@/lib/history-store'
 import { useDebugStore } from './debugStore'
 import { useSettingsStore } from './settingsStore'
 import { useDiffStore } from './diffStore'
@@ -9,9 +10,10 @@ import { useKiroStore } from './kiroStore'
 interface TaskStore {
   tasks: Record<string, AgentTask>
   projects: string[]           // workspace paths
+  deletedTaskIds: Set<string>  // guard against backend re-adding deleted tasks
   selectedTaskId: string | null
   pendingWorkspace: string | null  // workspace for a new thread not yet created
-  view: 'chat' | 'dashboard' | 'playground'
+  view: 'chat' | 'dashboard'
   isNewProjectOpen: boolean
   isSettingsOpen: boolean
   /** Accumulated text chunks for streaming display */
@@ -26,7 +28,7 @@ interface TaskStore {
   connected: boolean
   terminalOpen: boolean
   setSelectedTask: (id: string | null) => void
-  setView: (view: 'chat' | 'dashboard' | 'playground') => void
+  setView: (view: 'chat' | 'dashboard') => void
   setNewProjectOpen: (open: boolean) => void
   setSettingsOpen: (open: boolean) => void
   addProject: (workspace: string) => void
@@ -49,15 +51,19 @@ interface TaskStore {
   renameTask: (taskId: string, name: string) => void
   projectNames: Record<string, string>
   renameProject: (workspace: string, name: string) => void
+  reorderProject: (from: number, to: number) => void
   toggleTerminal: () => void
   loadTasks: () => Promise<void>
   setConnected: (v: boolean) => void
+  persistHistory: () => void
+  clearHistory: () => Promise<void>
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
   tasks: {},
   projects: [],
   projectNames: {},
+  deletedTaskIds: new Set<string>(),
   selectedTaskId: null,
   pendingWorkspace: null,
   view: 'chat',
@@ -93,10 +99,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     taskIds.forEach((id) => { void ipc.cancelTask(id).catch(() => {}) })
     taskIds.forEach((id) => { void ipc.deleteTask(id) })
     const selectedTaskId = taskIds.includes(s.selectedTaskId ?? '') ? null : s.selectedTaskId
+    const deletedTaskIds = new Set(s.deletedTaskIds)
+    taskIds.forEach((id) => deletedTaskIds.add(id))
     return {
       projects: s.projects.filter((p) => p !== workspace),
       tasks,
       selectedTaskId,
+      deletedTaskIds,
       view: selectedTaskId === null && s.view === 'chat' ? 'dashboard' : s.view,
     }
   }),
@@ -108,15 +117,20 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     taskIds.forEach((id) => { void ipc.cancelTask(id).catch(() => {}) })
     taskIds.forEach((id) => { void ipc.deleteTask(id) })
     const selectedTaskId = taskIds.includes(s.selectedTaskId ?? '') ? null : s.selectedTaskId
+    const deletedTaskIds = new Set(s.deletedTaskIds)
+    taskIds.forEach((id) => deletedTaskIds.add(id))
     return {
       tasks,
       selectedTaskId,
+      deletedTaskIds,
       view: selectedTaskId === null && s.view === 'chat' ? 'dashboard' : s.view,
     }
   }),
 
   upsertTask: (task) =>
     set((state) => {
+      // Don't re-add tasks that were explicitly deleted
+      if (state.deletedTaskIds.has(task.id)) return state
       const prev = state.tasks[task.id]
       // Always preserve existing messages when incoming has fewer.
       // Backend task_update events arrive with messages: [] (stripped at listener).
@@ -154,21 +168,26 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       }
     }),
 
-  removeTask: (id) =>
+  removeTask: (id) => {
     set((state) => {
       if (!state.tasks[id]) return state
       const { [id]: _, ...rest } = state.tasks
       const { [id]: _c, ...chunks } = state.streamingChunks
       const { [id]: _t, ...thinking } = state.thinkingChunks
       const { [id]: _tc, ...tools } = state.liveToolCalls
+      const deletedTaskIds = new Set(state.deletedTaskIds)
+      deletedTaskIds.add(id)
       return {
         tasks: rest,
         streamingChunks: chunks,
         thinkingChunks: thinking,
         liveToolCalls: tools,
+        deletedTaskIds,
         selectedTaskId: state.selectedTaskId === id ? null : state.selectedTaskId,
       }
-    }),
+    })
+    get().persistHistory()
+  },
 
   appendChunk: (taskId, chunk) =>
     set((state) => ({
@@ -302,17 +321,30 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     view: 'chat' as const,
   }),
 
-  renameTask: (taskId, name) =>
+  renameTask: (taskId, name) => {
     set((state) => {
       const task = state.tasks[taskId]
       if (!task || task.name === name) return state
       return { tasks: { ...state.tasks, [taskId]: { ...task, name } } }
-    }),
+    })
+    get().persistHistory()
+  },
 
-  renameProject: (workspace, name) =>
+  renameProject: (workspace, name) => {
     set((state) => {
       if (state.projectNames[workspace] === name) return state
       return { projectNames: { ...state.projectNames, [workspace]: name } }
+    })
+    get().persistHistory()
+  },
+
+  reorderProject: (from, to) =>
+    set((state) => {
+      if (from === to) return state
+      const arr = [...state.projects]
+      const [item] = arr.splice(from, 1)
+      arr.splice(to, 0, item)
+      return { projects: arr }
     }),
 
   toggleTerminal: () => set((s) => ({ terminalOpen: !s.terminalOpen })),
@@ -320,17 +352,76 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   loadTasks: async () => {
     try {
       const list = await ipc.listTasks()
-      const tasks = Object.fromEntries(list.map((t) => [t.id, t]))
+      const tasks: Record<string, AgentTask> = Object.fromEntries(list.map((t) => [t.id, t]))
       const projects = [...new Set(list.map((t) => t.workspace))]
-      set({ tasks, projects, connected: true })
+
+      // Load persisted history (archived threads from previous sessions)
+      try {
+        const [savedThreads, savedProjects] = await Promise.all([
+          historyStore.loadThreads(),
+          historyStore.loadProjects(),
+        ])
+        const archived = historyStore.toArchivedTasks(savedThreads)
+        for (const t of archived) {
+          // Don't overwrite live tasks with the same id
+          if (!tasks[t.id]) tasks[t.id] = t
+        }
+        // Merge project workspaces from history
+        for (const sp of savedProjects) {
+          if (!projects.includes(sp.workspace)) projects.push(sp.workspace)
+        }
+        // Restore project display names
+        const projectNames: Record<string, string> = {}
+        for (const sp of savedProjects) {
+          if (sp.displayName) projectNames[sp.workspace] = sp.displayName
+        }
+        set({ tasks, projects, projectNames, connected: true })
+      } catch {
+        // History load failed — still usable without it
+        set({ tasks, projects, connected: true })
+      }
     } catch {
-      set({ connected: false })
+      // Backend not available — try loading from history only
+      try {
+        const [savedThreads, savedProjects] = await Promise.all([
+          historyStore.loadThreads(),
+          historyStore.loadProjects(),
+        ])
+        const archived = historyStore.toArchivedTasks(savedThreads)
+        const tasks = Object.fromEntries(archived.map((t) => [t.id, t]))
+        const projects = savedProjects.map((sp) => sp.workspace)
+        const projectNames: Record<string, string> = {}
+        for (const sp of savedProjects) {
+          if (sp.displayName) projectNames[sp.workspace] = sp.displayName
+        }
+        set({ tasks, projects, projectNames, connected: false })
+      } catch {
+        set({ connected: false })
+      }
     }
   },
 
   setConnected: (v) => {
     if (get().connected === v) return
     set({ connected: v })
+  },
+
+  persistHistory: () => {
+    const { tasks, projectNames } = get()
+    historyStore.saveThreads(tasks, projectNames).catch(() => {})
+  },
+
+  clearHistory: async () => {
+    await historyStore.clearHistory()
+    // Remove archived tasks from state
+    set((s) => {
+      const tasks = { ...s.tasks }
+      for (const [id, task] of Object.entries(tasks)) {
+        if (task.isArchived) delete tasks[id]
+      }
+      const projects = [...new Set(Object.values(tasks).map((t) => t.workspace))]
+      return { tasks, projects }
+    })
   },
 }))
 
@@ -439,6 +530,9 @@ export function initTaskListeners(): () => void {
         liveToolCalls: { ...s.liveToolCalls, [taskId]: [] },
       }
     })
+
+    // Persist history after turn ends
+    useTaskStore.getState().persistHistory()
 
     // Auto-send the first queued message if any exist
     const state = useTaskStore.getState()

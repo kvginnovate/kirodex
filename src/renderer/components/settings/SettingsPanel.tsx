@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { X, Check, AlertCircle, Plus, Trash2, ChevronDown, Loader2, Search } from 'lucide-react'
+import { X, Check, AlertCircle, Plus, Trash2, ChevronDown, Loader2, Search, History } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { ipc } from '@/lib/ipc'
@@ -457,6 +457,28 @@ export function SettingsPanel() {
                     )}
                   />
                 </button>
+              </div>
+
+              <div className="border-t border-border/50 pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-medium text-muted-foreground">Conversation history</p>
+                    <p className="text-[10px] text-muted-foreground/60">
+                      Threads are saved between sessions for reference
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      useTaskStore.getState().clearHistory()
+                      setOpen(false)
+                    }}
+                    className="flex items-center gap-1.5 rounded-md border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
+                  >
+                    <History className="h-3 w-3" />
+                    Clear history
+                  </button>
+                </div>
               </div>
             </div>
           )}

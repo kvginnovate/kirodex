@@ -81,6 +81,8 @@ export interface AgentTask {
   agentProfileId?: string
   /** True only when the user explicitly hit Pause mid-run (not draft/idle) */
   userPaused?: boolean
+  /** True for threads restored from persisted history (read-only) */
+  isArchived?: boolean
 }
 
 // ── Profiles ──────────────────────────────────────────────────────
