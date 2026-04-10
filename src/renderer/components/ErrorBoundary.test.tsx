@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ErrorBoundary } from './ErrorBoundary'
 
 const ThrowingChild = ({ shouldThrow }: { shouldThrow: boolean }) => {
