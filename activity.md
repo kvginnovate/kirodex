@@ -1,6 +1,23 @@
 # Activity Log
 
 
+## 2026-04-10 10:47 GST (Dubai, UTC+4)
+
+### Fix sidebar sort: remove unused index prop, fix structural sharing
+
+Two issues fixed in the sidebar task sorting:
+
+1. `ProjectItem` declared an `index: number` prop that was never used in the component. Removed from the interface and from the render call in `TaskSidebar`.
+
+2. `useSidebarTasks` had two bugs:
+   - `sortTasks` mutated the input array with `.sort()`. Changed to `[...tasks].sort()` to return a new array.
+   - Structural sharing compared tasks by array index (`prev[i].id === next[i].id`), which breaks when tasks are added, removed, or reordered. Replaced with an id-keyed `Map<string, SidebarTask>` that compares each task by its `id` key, preserving object references for unchanged tasks regardless of position.
+
+**Modified:**
+- `src/renderer/components/sidebar/ProjectItem.tsx`
+- `src/renderer/components/sidebar/TaskSidebar.tsx`
+- `src/renderer/hooks/useSidebarTasks.ts`
+
 ## 2026-04-10 09:12 GST (Dubai, UTC+4)
 
 ### Made file mention pills inline within the ChatInput textarea area
@@ -828,3 +845,106 @@ Added Escape key handler so pressing Esc while the agent is running pauses it (s
 **Build:** `tsc --noEmit` ✓
 
 **Modified:** `src/renderer/hooks/useChatInput.ts`, `src/renderer/components/chat/ChatInput.tsx`
+
+---
+
+## 2026-04-10 09:55 (Dubai)
+
+### ThreadItem: Right-click context menu
+
+Added a right-click context menu to `ThreadItem` matching the `ProjectItem` style.
+
+**What changed:**
+- Right-click on any thread now opens a context menu with:
+  - **Rename** — triggers inline edit (same as double-click)
+  - **Delete** — shows an inline confirmation ("Delete this thread?" + Delete/Cancel buttons) before calling `onDelete`
+- Removed the old hover-only `Trash2` button
+- Context menu closes on outside click; confirmation resets on close
+
+**Build:** `tsc --noEmit` ✓ · `vite build` ✓
+
+**Modified:** `src/renderer/components/sidebar/ThreadItem.tsx`
+
+## 2026-04-10 10:05 GST (Dubai, UTC+4)
+
+### Added ValidationException context hint to error messages
+
+When a prompt error contains `ValidationException`, the user-facing error message now includes a tip explaining the likely cause: prompt too large or too many concurrent requests. Suggests closing unused sessions and trimming `alwaysApply` context rules to reduce per-request token usage.
+
+**Build:** `cargo check` ✓
+
+**Modified:** `src-tauri/src/commands/acp.rs`
+
+---
+
+## 2026-04-10 10:22 (Dubai)
+
+### ChatInput: Inline attachment display
+
+Moved file attachment chips from the separate top strip into the textarea content area, appearing inline above the text input.
+
+**What changed:**
+- `ChatInput.tsx`: moved `<AttachmentPreview>` from outside the content `div` to inside it, above the `<textarea>`
+- `AttachmentPreview.tsx`: removed outer padding (`px-3 pt-3 pb-1 sm:px-4`) and switched to `flex-wrap gap-2 pb-2` since it now lives inside the already-padded content area
+- `useSidebarTasks.ts`: fixed pre-existing TS bug — removed `threadOrder` from `useMemo` dependency array where it was referenced but never declared
+
+**Build:** `tsc --noEmit` ✓ · `vite build` ✓
+
+**Modified:** `src/renderer/components/chat/ChatInput.tsx`, `src/renderer/components/chat/AttachmentPreview.tsx`, `src/renderer/hooks/useSidebarTasks.ts`
+
+## 2026-04-10 10:28 GST (Dubai, UTC+4)
+
+### Removed MCP loading states from chat, simplified error display, updated sidebar dot colors
+
+Cleaned up MCP status display across the app. Loading indicators (connecting spinners, ready dots) no longer appear in chat messages. Errors show as minimal text lines instead of styled banners. The sidebar now reflects MCP failures via dot color.
+
+**What changed:**
+
+- `WorkingRow.tsx`: Removed `McpStatusLines`, `McpActionBanner`, and all MCP-related imports (`Circle`, `Key`, `cn`, `useKiroStore`). The working indicator now shows only the cycling "Thinking…" text.
+
+- `MessageItem.tsx`: Replaced `McpStatusLines` + `McpActionBanner` (duplicated from WorkingRow) with a minimal `McpErrorLines` component. Shows only error/auth-required servers as simple `text-[10px] text-red-400/70` lines (e.g., "slack — auth required", "github — failed"). Removed `Circle`, `Key`, `ipc` imports.
+
+- `KiroConfigPanel.tsx`: Updated `McpRow` dot color logic:
+  - Red (`fill-red-500`) for `error` or `needs-auth` status
+  - Green (`fill-emerald-400`) for enabled servers
+  - Grey (`fill-muted-foreground/20`) for disabled servers
+  - Added tooltip with error details on hover
+  - Added `mcpErrorCount` to MCP `SectionToggle` header (shows red dot + count when servers are failing)
+
+**Modified:**
+- `src/renderer/components/chat/WorkingRow.tsx`
+- `src/renderer/components/chat/MessageItem.tsx`
+- `src/renderer/components/sidebar/KiroConfigPanel.tsx`
+
+---
+
+## 2026-04-10 10:31 (Dubai)
+
+### Fix: deleted threads/projects re-appearing in UI
+
+**Root cause:** `cancelTask` triggers a backend `task_update` event. That event arrives after `removeTask`/`removeProject` already cleared the task from the store, causing `upsertTask` to re-add it — making the UI appear to hang with the deleted item still visible.
+
+**Fix:** Added `deletedTaskIds: Set<string>` to the store. `removeTask`, `removeProject`, and `archiveThreads` now populate this set. `upsertTask` bails out immediately if the incoming task ID is in `deletedTaskIds`.
+
+**Build:** `tsc --noEmit` ✓ · `vite build` ✓
+
+**Modified:** `src/renderer/stores/taskStore.ts`
+
+---
+
+## 2026-04-10 10:36 (Dubai)
+
+### Remove IPC Playground feature
+
+Removed the Playground feature entirely.
+
+**What changed:**
+- Deleted `src/renderer/components/Playground.tsx`
+- `App.tsx`: removed lazy import, `showPlayground` variable, `<Playground />` render branch, and `!showPlayground` guard on side panel
+- `taskStore.ts`: removed `'playground'` from `view` union type (both interface and setter)
+- `SidebarFooter.tsx`: removed Playground button, `setView` subscription, and `FlaskConical` import
+
+**Build:** `tsc --noEmit` ✓ · `vite build` ✓
+
+**Modified:** `src/renderer/App.tsx`, `src/renderer/stores/taskStore.ts`, `src/renderer/components/sidebar/SidebarFooter.tsx`
+**Deleted:** `src/renderer/components/Playground.tsx`

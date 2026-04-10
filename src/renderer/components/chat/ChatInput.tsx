@@ -177,7 +177,7 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
                     aria-label="Pause agent"
                     data-testid="pause-button"
                     className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-all duration-150 hover:scale-105"
-                    style={{ backgroundColor: isPlanMode ? 'rgba(239,68,68,0.9)' : 'rgba(139,92,246,0.9)' }}
+                    style={{ backgroundColor: isPlanMode ? 'rgba(20,184,166,0.9)' : 'rgba(139,92,246,0.9)' }}
                   >
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
                       <rect x="1.5" y="1" width="3" height="10" rx="1" />
