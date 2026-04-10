@@ -710,8 +710,17 @@ pub fn task_create(
         app.clone(),
     )?;
 
-    // Send initial prompt
-    let _ = handle.cmd_tx.send(AcpCommand::Prompt(params.prompt));
+    // Send initial prompt with project rules prepended (not shown in UI)
+    let system_prefix = concat!(
+        "# Kirodex project rules\n\n",
+        "## Commits\n\n",
+        "Every git commit must include the co-author trailer:\n\n",
+        "```\nCo-authored-by: Kirodex <274876363+kirodex@users.noreply.github.com>\n```\n\n",
+        "Use conventional commit format: `type(scope): description`.\n\n",
+        "---\n\n",
+    );
+    let full_prompt = format!("{system_prefix}{}", params.prompt);
+    let _ = handle.cmd_tx.send(AcpCommand::Prompt(full_prompt));
 
     state.connections.lock().map_err(|e| format!("Lock poisoned: {e}"))?.insert(id, handle);
 

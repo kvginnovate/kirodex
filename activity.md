@@ -1,3 +1,19 @@
+## 2026-04-10 20:21 GST (Dubai)
+
+### ACP: Inject Kirodex project rules into initial prompt
+
+The co-author and conventional commit rules are now prepended to the first ACP prompt sent to kiro-cli. The user sees their original message in the UI; the rules are only in the wire prompt. This ensures the agent always follows project conventions without the user needing to type them.
+
+**Modified:** `src-tauri/src/commands/acp.rs`
+
+## 2026-04-10 20:18 GST (Dubai)
+
+### Steering: Add Kirodex co-author commit rule
+
+Added `alwaysApply` steering rule at `.kiro/steering/kirodex-rules.md` requiring the Kirodex co-author trailer on every commit. Also added the same rule to `CLAUDE.md`.
+
+**Modified:** `.kiro/steering/kirodex-rules.md`, `CLAUDE.md`
+
 ## 2026-04-10 19:41 GST (Dubai)
 
 ### Rust: Reduce memory footprint and fix resilience issues

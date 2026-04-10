@@ -103,6 +103,7 @@ bun run clean         # Remove build artifacts
 - Accessibility: semantic HTML, ARIA attributes, keyboard navigation
 - Icons: use `@tabler/icons-react` exclusively. Never use `lucide-react`. Tabler icons use the `Icon` prefix (e.g., `IconPlus`, `IconCheck`, `IconChevronDown`).
 - Conventional Commits for git messages (`feat:`, `fix:`, `chore:`, etc.)
+- Every commit must include: `Co-authored-by: Kirodex <274876363+kirodex@users.noreply.github.com>`
 
 ## Build validation
 
