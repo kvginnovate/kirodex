@@ -28,7 +28,7 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       tag: v${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Extract version
         id: meta
         run: |
@@ -61,7 +61,7 @@ jobs:
     name: Build (${{ matrix.name }})
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: oven-sh/setup-bun@v2
 
@@ -130,7 +130,7 @@ jobs:
       TAG: ${{ needs.setup.outputs.tag }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download release DMG and compute hash
         env:
