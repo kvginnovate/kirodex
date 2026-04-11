@@ -1,3 +1,8 @@
+## 2026-04-11 04:09 GST (Dubai)
+### CI: Fix build failure — install cargo-tauri CLI and add cross-platform builds
+The macOS CI build failed with `error: no such command: tauri` because `cargo-tauri` was never installed. Added `cargo install tauri-cli --locked` step before the build. Renamed `build` job to `build-macos` and added `build-windows` (msi + exe) and `build-linux` (deb + AppImage with system deps) production build jobs. All three depend on lint, test-ui, and test-rust.
+**Modified:** `.github/workflows/ci.yml`
+
 ## 2026-04-11 03:54 GST (Dubai)
 ### Build: Fix Windows CI failure — missing icon.ico
 The `icon.ico` file existed locally but was never committed to git. Tauri requires it for Windows resource file generation. Staged the file for commit.
