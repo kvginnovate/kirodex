@@ -23,7 +23,7 @@ function renderWithMentions(text: string): ReactNode {
     if (ref.startsWith('agent:')) {
       const name = ref.slice(6)
       parts.push(
-        <span key={idx} className="mx-0.5 inline-flex items-center gap-0.5 rounded bg-purple-500/15 px-1 py-px align-middle text-[11px] font-medium leading-normal text-purple-400">
+        <span key={idx} className="mx-0.5 inline-flex items-center gap-0.5 rounded bg-blue-500/15 px-1 py-px align-middle text-[11px] font-medium leading-normal text-blue-400">
           <IconRobot className="size-2.5 shrink-0" />{name}
         </span>
       )

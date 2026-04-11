@@ -24,7 +24,7 @@ const EXT_ICONS: Record<string, { label: string; cls: string }> = {
   py:    { label: 'PY',  cls: 'bg-emerald-500/20 text-emerald-400' },
   go:    { label: 'GO',  cls: 'bg-cyan-500/20 text-cyan-400' },
   sh:    { label: 'SH',  cls: 'bg-gray-500/20 text-gray-400' },
-  svg:   { label: 'SVG', cls: 'bg-violet-500/20 text-violet-400' },
+  svg:   { label: 'SVG', cls: 'bg-blue-500/20 text-blue-400' },
   png:   { label: 'IMG', cls: 'bg-teal-500/20 text-teal-400' },
   jpg:   { label: 'IMG', cls: 'bg-teal-500/20 text-teal-400' },
   lock:  { label: 'LCK', cls: 'bg-gray-500/20 text-gray-500' },

@@ -58,9 +58,9 @@ export const ChatInput = memo(function ChatInput({ disabled, contextUsage, messa
   }, [fileInputRef])
 
   const isPlanMode = currentModeId === 'kiro_planner'
-  const borderFocus = isPlanMode ? 'focus-within:border-teal-500/60' : 'focus-within:border-violet-500/60'
+  const borderFocus = isPlanMode ? 'focus-within:border-teal-500/60' : 'focus-within:border-blue-500/60'
   const borderIdle = isPlanMode ? 'border-teal-500/25' : 'border-border'
-  const buttonBg = isPlanMode ? 'bg-teal-500/90 hover:bg-teal-500' : 'bg-violet-500/90 hover:bg-violet-500'
+  const buttonBg = isPlanMode ? 'bg-teal-500/90 hover:bg-teal-500' : 'bg-blue-500/90 hover:bg-blue-500'
 
   const contextRingNode = (contextUsage && contextUsage.size > 0)
     ? <ContextRing used={contextUsage.used} size={contextUsage.size} />
