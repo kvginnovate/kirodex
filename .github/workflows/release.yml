@@ -85,7 +85,11 @@ jobs:
             | **Linux** (x86_64) | `.deb` / `.AppImage` / `.rpm` |
             | **Windows** (x86_64) | `.exe` / `.msi` |
 
-            **Homebrew:** `brew install --cask thabti/tap/kirodex`
+            **Homebrew:**
+            ```bash
+            brew install --cask thabti/tap/kirodex   # first install
+            brew reinstall --cask thabti/tap/kirodex  # upgrade
+            ```
 
             > Requires [kiro-cli](https://kiro.dev)
           releaseDraft: false
