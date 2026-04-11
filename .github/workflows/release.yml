@@ -136,11 +136,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Wait for release assets to be available
-          sleep 30
-          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
-          curl -fsSL -o /tmp/kirodex.dmg "${BASE}/Kirodex_${VERSION}_aarch64.dmg"
-          SHA256_ARM=$(shasum -a 256 /tmp/kirodex.dmg | awk '{print $1}')
+          # Retry loop — draft release assets aren't publicly accessible,
+          # so we use `gh release download` which authenticates via GH_TOKEN.
+          DMG="Kirodex_${VERSION}_aarch64.dmg"
+          for i in $(seq 1 10); do
+            echo "Attempt $i: downloading ${DMG}..."
+            if gh release download "${TAG}" --repo "${{ github.repository }}" \
+                 --pattern "${DMG}" --dir /tmp; then
+              break
+            fi
+            if [ "$i" -eq 10 ]; then
+              echo "::error::Failed to download ${DMG} after 10 attempts"
+              exit 1
+            fi
+            sleep 15
+          done
+          SHA256_ARM=$(shasum -a 256 /tmp/"${DMG}" | awk '{print $1}')
           echo "SHA256_ARM=$SHA256_ARM" >> $GITHUB_ENV
           echo "SHA256_X64=$SHA256_ARM" >> $GITHUB_ENV
 
