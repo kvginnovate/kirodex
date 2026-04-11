@@ -1,3 +1,7 @@
+#[cfg(target_os = "macos")]
+#[macro_use]
+extern crate objc;
+
 mod commands;
 
 use commands::{acp, fs_ops, git, kiro_config, pty, settings};
@@ -109,8 +113,22 @@ pub fn run() {
 
             #[cfg(target_os = "macos")]
             {
-                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-                let _ = apply_vibrancy(&_window, NSVisualEffectMaterial::HudWindow, None, Some(12.0));
+                #[allow(deprecated)]
+                {
+                    use cocoa::appkit::{NSColor, NSWindow};
+                    use cocoa::base::{id, nil};
+                    let ns_window = _window.ns_window().unwrap() as id;
+                    unsafe {
+                        // Round the window corners natively
+                        let content_view: id = ns_window.contentView();
+                        let layer: id = msg_send![content_view, layer];
+                        let () = msg_send![layer, setCornerRadius: 12.0_f64];
+                        let () = msg_send![layer, setMasksToBounds: true];
+                        // Make window background clear so the rounded corners show
+                        let bg = NSColor::clearColor(nil);
+                        ns_window.setBackgroundColor_(bg);
+                    }
+                }
             }
             log::info!("Kirodex started (pid={})", std::process::id());
             Ok(())
