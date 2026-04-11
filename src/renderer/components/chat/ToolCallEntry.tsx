@@ -12,7 +12,7 @@ import { InlineDiff } from './InlineDiff'
 import { getToolIcon } from './tool-call-utils'
 import { TaskListDisplay, isTaskListToolCall } from './TaskListDisplay'
 
-export const ToolCallEntry = memo(function ToolCallEntry({ toolCall }: { toolCall: ToolCall }) {
+export const ToolCallEntry = memo(function ToolCallEntry({ toolCall, allToolCalls }: { toolCall: ToolCall; allToolCalls: ToolCall[] }) {
   const [expanded, setExpanded] = useState(false)
   const [fileDiff, setFileDiff] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
@@ -97,7 +97,7 @@ export const ToolCallEntry = memo(function ToolCallEntry({ toolCall }: { toolCal
 
       {expanded && hasDiff && <InlineDiff diffText={fileDiff} />}
 
-      {isTaskList && <TaskListDisplay toolCall={toolCall} />}
+      {isTaskList && <TaskListDisplay toolCall={toolCall} allToolCalls={allToolCalls} />}
 
       {expanded && hasContent && !isTaskList && (
         <div className="ml-5 mr-2 mb-1 mt-0.5 rounded-md border border-border/30 bg-background/50 px-2.5 py-2 text-xs space-y-2">

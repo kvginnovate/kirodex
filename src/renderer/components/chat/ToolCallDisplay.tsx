@@ -71,7 +71,7 @@ export const ToolCallDisplay = memo(function ToolCallDisplay({ toolCalls }: Tool
       {expanded && (
         <div className="border-t border-border/20 py-0.5">
           {visibleCalls.map((tc) => (
-            <ToolCallEntry key={tc.toolCallId} toolCall={tc} />
+            <ToolCallEntry key={tc.toolCallId} toolCall={tc} allToolCalls={toolCalls} />
           ))}
           {hasMore && !showAll && (
             <button
