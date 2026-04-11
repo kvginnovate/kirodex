@@ -8,6 +8,7 @@ export interface SidebarTask {
   readonly workspace: string
   readonly createdAt: string
   readonly status: string
+  readonly isArchived?: boolean
 }
 
 export type SortKey = 'recent' | 'oldest' | 'name-asc' | 'name-desc'
@@ -46,11 +47,11 @@ export function useSidebarTasks(sort: SortKey): readonly SidebarProject[] {
     let changed = prev.size !== Object.keys(tasks).length
     for (const t of Object.values(tasks)) {
       const p = prev.get(t.id)
-      if (p && p.name === t.name && p.status === t.status && p.createdAt === t.createdAt && p.workspace === t.workspace) {
+      if (p && p.name === t.name && p.status === t.status && p.createdAt === t.createdAt && p.workspace === t.workspace && p.isArchived === t.isArchived) {
         next.set(t.id, p)
       } else {
         changed = true
-        next.set(t.id, { id: t.id, name: t.name, workspace: t.workspace, createdAt: t.createdAt, status: t.status })
+        next.set(t.id, { id: t.id, name: t.name, workspace: t.workspace, createdAt: t.createdAt, status: t.status, isArchived: t.isArchived })
       }
     }
     if (!changed) return prev

@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react'
-import { IconPencil, IconTrash } from '@tabler/icons-react'
+import { IconPencil, IconTrash, IconArchive } from '@tabler/icons-react'
 import { cn } from '@/lib/utils'
 import type { SidebarTask } from '@/hooks/useSidebarTasks'
 
@@ -119,14 +119,17 @@ export const ThreadItem = memo(function ThreadItem({ task, isActive, onSelect, o
         ) : (
           <span className="min-w-0 flex-1 truncate text-xs">{task.name}</span>
         )}
+        {task.isArchived && (
+          <IconArchive className="size-3 shrink-0 text-muted-foreground/50" aria-label="View-only thread" />
+        )}
         <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground/40 group-hover/thread:hidden">
           {relativeTime(task.createdAt)}
         </span>
       </div>
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-14 items-center justify-end rounded-r-lg pr-1 group-hover/thread:flex"
         style={{ background: isActive
-          ? 'linear-gradient(to right, transparent 0%, hsl(var(--accent) / 0.55) 40%)'
-          : 'linear-gradient(to right, transparent 0%, hsl(var(--accent)) 40%)'
+          ? 'linear-gradient(to right, transparent 0%, hsl(var(--accent) / 0.85) 35%)'
+          : 'linear-gradient(to right, transparent 0%, hsl(var(--accent)) 35%)'
         }}
       >
         <button
