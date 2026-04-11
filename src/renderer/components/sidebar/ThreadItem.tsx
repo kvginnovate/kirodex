@@ -129,7 +129,7 @@ export const ThreadItem = memo(function ThreadItem({ task, isActive, onSelect, o
           </Tooltip>
         )}
         <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground/40 group-hover/thread:hidden">
-          {relativeTime(task.createdAt)}
+          {relativeTime(task.lastActivityAt)}
         </span>
       </div>
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-14 items-center justify-end rounded-r-lg pr-1 group-hover/thread:flex"
