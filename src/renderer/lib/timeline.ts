@@ -34,12 +34,16 @@ export interface AssistantTextRow {
   timestamp: string
   thinking?: string
   isStreaming?: boolean
+  /** True when this row is followed by another row from the same turn */
+  squashed?: boolean
 }
 
 export interface WorkRow {
   kind: 'work'
   id: string
   toolCalls: ToolCall[]
+  /** True when this row is followed by another row from the same turn */
+  squashed?: boolean
 }
 
 export interface WorkingRow {
@@ -105,6 +109,11 @@ export function deriveTimeline(
     }
 
     // Assistant message: text first, then tool calls below
+    const hasToolCalls = !!(msg.toolCalls && msg.toolCalls.length > 0)
+    const hasFileChanges = hasToolCalls && msg.toolCalls!.some(
+      (tc) => tc.status === 'completed' && isFileMutation(tc.kind, tc.title),
+    )
+
     if (msg.content || msg.thinking) {
       rows.push({
         kind: 'assistant-text',
@@ -112,24 +121,22 @@ export function deriveTimeline(
         content: msg.content,
         timestamp: msg.timestamp,
         thinking: msg.thinking,
+        squashed: hasToolCalls,
       })
     }
 
-    if (msg.toolCalls && msg.toolCalls.length > 0) {
+    if (hasToolCalls) {
       rows.push({
         kind: 'work',
         id: `msg-${i}-work`,
-        toolCalls: msg.toolCalls,
+        toolCalls: msg.toolCalls!,
+        squashed: hasFileChanges,
       })
-      // Inject changed-files summary after work rows with file mutations
-      const hasFileChanges = msg.toolCalls.some(
-        (tc) => tc.status === 'completed' && isFileMutation(tc.kind, tc.title),
-      )
       if (hasFileChanges) {
         rows.push({
           kind: 'changed-files',
           id: `msg-${i}-changed-files`,
-          toolCalls: msg.toolCalls,
+          toolCalls: msg.toolCalls!,
         })
       }
     }
@@ -149,6 +156,7 @@ export function deriveTimeline(
       timestamp: '',
       thinking: liveThinking,
       isStreaming: true,
+      squashed: hasLiveTools,
     })
   }
 

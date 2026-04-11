@@ -33,3 +33,41 @@
   - `useSidebarTasks.ts`: Added `isArchived` to `SidebarTask` interface, included it in structural sharing comparison and field mapping
   - `ThreadItem.tsx`: Imported `IconArchive`, renders a small archive icon to the right of the thread name when `task.isArchived` is true
   - TypeScript compiles clean
+
+## 2026-04-12 00:21 (Dubai)
+- Added optional task completion JSON report feature
+  - `settings.rs`: Added `co_author_json_report` boolean (default false) to `AppSettings`
+  - `types/index.ts`: Added `coAuthorJsonReport` to TS `AppSettings` interface
+  - `acp.rs`: `task_create` conditionally appends `kirodex-report` code fence instructions when setting is enabled
+  - `TaskCompletionCard.tsx`: New component with `parseReport`/`stripReport` helpers — renders a status card (done/partial/blocked) with file list and +/- line stats
+  - `MessageItem.tsx`: Detects `kirodex-report` fences in assistant messages, strips them from markdown, renders `TaskCompletionCard` below
+  - `SettingsPanel.tsx`: Added "Task completion report" toggle under Advanced > Git Integration
+
+## 2026-04-12 00:28 (Dubai)
+- Fixed messages not appearing until user scrolls/interacts (virtualizer stale measurement bug)
+  - `MessageList.tsx`: Added `rowFingerprint` (joined row IDs) to detect structural timeline changes
+  - Added `virtualizer.measure()` effect that fires when row structure changes, forcing recalculation of cached sizes
+  - Changed auto-scroll dependency from `timelineRows.length` to `rowFingerprint` so it fires when rows are replaced (live → persisted), not just added
+  - Bumped virtualizer `overscan` from 5 to 8 for smoother off-screen rendering
+## 2026-04-11 20:32 (Dubai)
+
+- Changed Agents icon color in Kiro side panel from `text-blue-400` (blue) to `text-violet-400` (purple/violet)
+- File modified: `src/renderer/components/sidebar/KiroConfigPanel.tsx` line 434
+
+## 2026-04-12 00:33 (Dubai)
+- Moved archive icon to the left side of thread name in sidebar
+  - `ThreadItem.tsx`: Moved `IconArchive` rendering block from after the thread name to before it
+  - Thread item order is now: status dot → archive icon → thread name → relative time
+  - Previously: status dot → thread name → archive icon → relative time
+
+## 2026-04-12 00:32 (Dubai)
+- Fixed excessive padding between squashed/grouped timeline rows in chat message list
+  - `timeline.ts`: Added `squashed?: boolean` to `AssistantTextRow` and `WorkRow` types; set `squashed=true` on assistant-text rows followed by work rows, and on work rows followed by changed-files rows; also applied to live streaming rows
+  - `AssistantTextRow.tsx`: Bottom padding reduced from `pb-4` to `pb-1` when squashed
+  - `WorkGroupRow.tsx`: Bottom padding reduced from `pb-3` to `pb-0` when squashed
+  - TypeScript compiles clean
+
+## 2026-04-11 20:36 (Dubai)
+- Added tooltip to thread items in project panel sidebar showing full title on hover
+  - `ThreadItem.tsx`: Imported `Tooltip`, `TooltipTrigger`, `TooltipContent` from shadcn; wrapped the truncated thread name `<span>` with a tooltip that displays `task.name` on the right side
+  - TypeScript compiles clean
