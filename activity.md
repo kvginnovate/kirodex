@@ -1,5 +1,67 @@
 # Kirodex Tauri Activity Log
 
+## 2026-04-12 23:19 GST (Dubai)
+
+### Batch commit: sidebar position, draft persistence, sound notifications, typography bump
+
+Committed all pending changes in six logical commits:
+
+1. `chore: add .claude/ to .gitignore`
+2. `feat(sidebar): add left/right sidebar position` — SidebarPosition type, context menu, settings toggle, resize/border/icon flip
+3. `feat(chat): draft persistence for pending threads` — in-memory drafts store, debounced save, sidebar draft entries with badge
+4. `feat(settings): sound notifications backend` — Rust sound_notifications field, Web Audio playNotificationSound()
+5. `style(chat): bump typography sizes and spacing` — 19 files, prose to 15px, icons 3→3.5, headings scaled up, streaming cursor class
+6. `docs: update activity.md`
+
+## 2026-04-12 23:18 GST (Dubai)
+
+### Settings: Default task completion report to ON
+
+Changed the task completion JSON report setting to default to `true` in both the frontend toggle fallback and the Rust `AppSettings::default()` impl. New users and fresh installs now get the completion card enabled out of the box.
+
+**Modified:** `src/renderer/components/settings/SettingsPanel.tsx`, `src-tauri/src/commands/settings.rs`
+
+## 2026-04-12 22:40 GST (Dubai)
+
+### Icons: Add teal dev icon to distinguish local builds from production
+
+Replaced default icons with teal (#14B8A6) for dev/local builds, moved blue production icons to `icons/prod/`, and updated `tauri.ci.conf.json` to override icon paths for CI release builds. Local `cargo tauri dev` now shows teal; CI releases use blue.
+
+**Modified:** `src-tauri/icons/icon.svg`, `src-tauri/icons/icon.png`, `src-tauri/icons/icon.icns`, `src-tauri/icons/icon.ico`, `src-tauri/icons/prod/icon.png`, `src-tauri/icons/prod/icon.icns`, `src-tauri/icons/prod/icon.ico`, `src-tauri/tauri.ci.conf.json`
+
+## 2026-04-12 22:37 GST (Dubai)
+
+### Sidebar: Add right-click context menu to switch sidebar position
+
+Added a context menu on the TaskSidebar panel that shows "Move sidebar to left/right" with the appropriate icon. Clicking it saves the setting immediately via `settingsStore.saveSettings()`, flipping the sidebar to the other side without needing to open Settings.
+
+**Modified:** src/renderer/components/sidebar/TaskSidebar.tsx
+
+
+## 2026-04-13 00:00 GST (Dubai)
+
+### Chat: Fix message area layout and styling issues
+
+Fixed multiple layout and styling issues in the chat message area. Removed the `mb-[20px]` magic number from ChatInput, replacing it with proper `pb-4 sm:pb-5` padding. Increased MessageList bottom padding (`pb-6 sm:pb-8`) so the last message has breathing room above the input. Standardized vertical spacing across all timeline row types to `pb-4` (normal) and `pb-1.5` (squashed), removing the stray `px-1` from SystemMessageRow. Removed the `mt-1` top margin from ChatMarkdown's PROSE_CLASSES and added the `streaming-cursor` CSS class when streaming is active. Fixed ThinkingDisplay margin (`my-3` → `mb-3`) to prevent double-spacing with assistant text. Increased ToolCallDisplay border/background opacity for better visibility in light mode. Improved user message bubble width on narrow viewports (`max-w-[85%] sm:max-w-[75%]`).
+
+**Modified:** ChatInput.tsx, MessageList.tsx, AssistantTextRow.tsx, UserMessageRow.tsx, SystemMessageRow.tsx, WorkGroupRow.tsx, ChatMarkdown.tsx, ThinkingDisplay.tsx, ToolCallDisplay.tsx
+
+## 2026-04-12 23:57 GST (Dubai)
+
+### Settings: Wire sidebar position (left/right) into layout
+
+Completed the sidebar position feature. The data model, defaults, and settings UI were already in place. Wired the setting into the runtime layout: TaskSidebar now accepts a `position` prop that flips `border-r`/`border-l`, swaps the resize handle between `right-0`/`left-0`, passes `reverse` to `useResizeHandle`, and uses `order-last` for right positioning. AppHeader toggle icon switches between left and right sidebar collapse/expand icons based on the setting. App.tsx was already reading the setting and passing props. TypeScript and Vite build pass clean.
+
+**Modified:** src/renderer/components/sidebar/TaskSidebar.tsx, src/renderer/components/AppHeader.tsx
+
+## 2026-04-12 20:00 GST (Dubai)
+
+### Chat: Fix raw base64 image display in user messages
+
+Standalone `<image src="data:...base64..." />` tags (from inline image replacement) were passing through to the text renderer as raw strings. Added a regex in `parseAttachments` to catch these tags and render them as clickable image pills with preview thumbnails, matching the existing attachment pill behavior.
+
+**Modified:** src/renderer/components/chat/UserMessageRow.tsx
+
 ## 2026-04-12 18:59 GST (Dubai)
 
 ### Chat: Add /close and /exit slash commands with Cmd+W shortcut
@@ -122,6 +184,19 @@ Copied CLAUDE.md to AGENTS.md so both files have identical content. AGENTS.md wa
 - **Created 7 components** in `unified-title-bar/`: TrafficLights, WindowsControls, TitleBarToolbar, UnifiedTitleBarMacOS/Windows/Linux, index
 - **AppHeader.tsx:** Removed `pl-[90px]` hack, wrapped content in `UnifiedTitleBar`
 - **cargo check:** Passed cleanly
+## 2026-04-12 16:00 GST (Dubai)
+
+### Chat: Full message area UX overhaul — typography, spacing & visual polish
+
+Overhauled the entire chat message area for a more spacious, polished feel inspired by modern AI coding interfaces. Body text bumped from 13px to 15px, secondary text from 11px to 13px, micro labels from 10px to 11px. Line height increased to 1.7 for prose. Generous vertical breathing room added between messages. Tool calls, question cards, thinking display, permission banners, completion cards, inline diffs, and changed files summary all received proportional size and spacing increases.
+
+**Modified:** `src/tailwind.css`, `src/renderer/components/chat/ChatMarkdown.tsx`, `src/renderer/components/chat/UserMessageRow.tsx`, `src/renderer/components/chat/AssistantTextRow.tsx`, `src/renderer/components/chat/WorkGroupRow.tsx`, `src/renderer/components/chat/ToolCallDisplay.tsx`, `src/renderer/components/chat/ToolCallEntry.tsx`, `src/renderer/components/chat/QuestionCards.tsx`, `src/renderer/components/chat/CollapsedAnswers.tsx`, `src/renderer/components/chat/ThinkingDisplay.tsx`, `src/renderer/components/chat/WorkingRow.tsx`, `src/renderer/components/chat/SystemMessageRow.tsx`, `src/renderer/components/chat/PermissionBanner.tsx`, `src/renderer/components/chat/TaskCompletionCard.tsx`, `src/renderer/components/chat/TaskListDisplay.tsx`, `src/renderer/components/chat/InlineDiff.tsx`, `src/renderer/components/chat/ChangedFilesSummary.tsx`, `src/renderer/components/chat/MessageList.tsx`
+
+### Chat: Thread draft saving
+
+Added per-workspace draft saving so users don't lose typed content when navigating away from a new thread. Drafts are stored in-memory in the task store, auto-saved on keystroke (300ms debounce), and shown in the sidebar with a "Draft" badge. Clicking a draft navigates back to PendingChat with the content restored; sending clears the draft.
+
+**Modified:** `src/renderer/stores/taskStore.ts`, `src/renderer/hooks/useChatInput.ts`, `src/renderer/hooks/useSidebarTasks.ts`, `src/renderer/components/chat/ChatInput.tsx`, `src/renderer/components/chat/PendingChat.tsx`, `src/renderer/components/sidebar/ThreadItem.tsx`, `src/renderer/components/sidebar/TaskSidebar.tsx`
 
 ## 2026-04-12 02:19 (Dubai)
 
