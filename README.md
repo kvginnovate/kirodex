@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/thabti/kirodex">
-    <img src="src-tauri/icons/icon.png" alt="Kirodex" width="120" height="120" />
+    <img src="src-tauri/icons/prod/icon.png" alt="Kirodex" width="120" height="120" />
   </a>
   <h1 align="center">Kirodex</h1>
   <p align="center">
