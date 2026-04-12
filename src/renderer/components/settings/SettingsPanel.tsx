@@ -203,6 +203,7 @@ const UpdatesCard = () => {
 export const SettingsPanel = () => {
   const open = useTaskStore((s) => s.isSettingsOpen)
   const setOpen = useTaskStore((s) => s.setSettingsOpen)
+  const settingsInitialSection = useTaskStore((s) => s.settingsInitialSection)
   const {
     settings, saveSettings, availableModels, currentModelId,
     modelsLoading, modelsError, fetchModels,
@@ -219,6 +220,13 @@ export const SettingsPanel = () => {
   useEffect(() => { getVersion().then(setAppVersion).catch(() => {}) }, [])
   useEffect(() => { if (open && !kiroAuthChecked) checkAuth() }, [open, kiroAuthChecked, checkAuth])
   useEffect(() => { setDraft(settings) }, [settings])
+
+  // Jump to requested section when settings opens
+  useEffect(() => {
+    if (open && settingsInitialSection) {
+      setSection(settingsInitialSection as Section)
+    }
+  }, [open, settingsInitialSection])
 
   useEffect(() => {
     if (!open) return
@@ -458,7 +466,7 @@ export const SettingsPanel = () => {
                             disabled={modelsLoading}
                             className="flex shrink-0 items-center gap-1 rounded-lg border border-input px-2.5 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
                           >
-                            {modelsLoading ? <IconLoader2 className="size-3 animate-spin" /> : 'Refresh'}
+                            {modelsLoading ? <><IconLoader2 className="size-3 animate-spin" /> Loading…</> : 'Refresh'}
                           </button>
                         </div>
                         {modelsError && <span className="mt-1.5 flex items-center gap-1 text-xs text-red-400"><IconAlertCircle className="size-3" /> {modelsError}</span>}

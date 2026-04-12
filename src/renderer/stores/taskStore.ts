@@ -17,6 +17,7 @@ interface TaskStore {
   view: 'chat' | 'dashboard'
   isNewProjectOpen: boolean
   isSettingsOpen: boolean
+  settingsInitialSection: string | null
   /** Accumulated text chunks for streaming display */
   streamingChunks: Record<string, string>
   /** Accumulated thinking chunks for live thinking display */
@@ -31,7 +32,7 @@ interface TaskStore {
   setSelectedTask: (id: string | null) => void
   setView: (view: 'chat' | 'dashboard') => void
   setNewProjectOpen: (open: boolean) => void
-  setSettingsOpen: (open: boolean) => void
+  setSettingsOpen: (open: boolean, section?: string | null) => void
   addProject: (workspace: string) => void
   removeProject: (workspace: string) => void
   archiveThreads: (workspace: string) => void
@@ -70,6 +71,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   view: 'chat',
   isNewProjectOpen: false,
   isSettingsOpen: false,
+  settingsInitialSection: null,
   streamingChunks: {},
   thinkingChunks: {},
   liveToolCalls: {},
@@ -87,7 +89,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set({ view })
   },
   setNewProjectOpen: (open) => set({ isNewProjectOpen: open }),
-  setSettingsOpen: (open) => set({ isSettingsOpen: open }),
+  setSettingsOpen: (open, section) => set({ isSettingsOpen: open, settingsInitialSection: section ?? null }),
   addProject: (workspace) => {
     if (get().projects.includes(workspace)) return
     set((s) => ({ projects: [...s.projects, workspace] }))
