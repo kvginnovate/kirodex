@@ -93,6 +93,7 @@ export const ThreadItem = memo(function ThreadItem({ task, isActive, onSelect, o
       <div
         role="button"
         tabIndex={0}
+        aria-label={task.isDraft ? `${task.name}, draft` : undefined}
         onClick={onSelect}
         onContextMenu={handleContextMenu}
         onKeyDown={(e) => e.key === 'Enter' && onSelect()}
@@ -104,9 +105,11 @@ export const ThreadItem = memo(function ThreadItem({ task, isActive, onSelect, o
             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
         )}
       >
-        {!task.isDraft && dot && (
+        {task.isDraft ? (
+          <span className="size-1.5 shrink-0" />
+        ) : dot ? (
           <span className={cn('size-1.5 shrink-0 rounded-full', dot.color, dot.pulse && 'animate-pulse')} />
-        )}
+        ) : null}
         {task.isArchived && (
           <IconArchive className="size-3 shrink-0 text-muted-foreground/50" aria-label="View-only thread" />
         )}
@@ -129,7 +132,7 @@ export const ThreadItem = memo(function ThreadItem({ task, isActive, onSelect, o
           </Tooltip>
         )}
         {task.isDraft ? (
-          <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground group-hover/thread:hidden" aria-label="Draft">
+          <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/80 group-hover/thread:hidden" aria-hidden="true">
             Draft
           </span>
         ) : (
@@ -182,14 +185,18 @@ export const ThreadItem = memo(function ThreadItem({ task, isActive, onSelect, o
             </>
           ) : (
             <>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent"
-                onClick={handleRenameClick}
-              >
-                <IconPencil className="size-3.5" /> Rename
-              </button>
-              <div className="my-1 border-t border-border/50" />
+              {!task.isDraft && (
+                <>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent"
+                    onClick={handleRenameClick}
+                  >
+                    <IconPencil className="size-3.5" /> Rename
+                  </button>
+                  <div className="my-1 border-t border-border/50" />
+                </>
+              )}
               <button
                 type="button"
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-destructive transition-colors hover:bg-destructive/10"

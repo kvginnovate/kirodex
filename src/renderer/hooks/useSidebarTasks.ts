@@ -78,15 +78,12 @@ export function useSidebarTasks(sort: SortKey): readonly SidebarProject[] {
     // Inject draft entries at the top of each workspace's list
     for (const [ws, content] of Object.entries(drafts)) {
       if (!content.trim()) continue
-      const draftName = content.trim().length > 40
-        ? content.trim().slice(0, 37) + '\u2026'
-        : content.trim()
       const draftTask: SidebarTask = {
         id: `draft:${ws}`,
-        name: draftName,
+        name: content.trim(),
         workspace: ws,
         createdAt: new Date().toISOString(),
-        status: 'paused',
+        status: 'draft',
         isDraft: true,
       }
       const existing = grouped.get(ws) ?? []
