@@ -100,7 +100,14 @@ export const TaskSidebar = memo(function TaskSidebar({ width, onResize }: TaskSi
   }, [setSelectedTask, setView])
   const handleDeleteTask = useCallback((id: string) => {
     if (id.startsWith('draft:')) {
-      useTaskStore.getState().removeDraft(id.slice(6))
+      const ws = id.slice(6)
+      const store = useTaskStore.getState()
+      // Clear pendingWorkspace first so PendingChat unmounts before removeDraft,
+      // preventing the unmount flush from resurrecting the draft
+      if (store.pendingWorkspace === ws) {
+        store.setPendingWorkspace(null)
+      }
+      store.removeDraft(ws)
     } else {
       void ipc.cancelTask(id).catch(() => {}); removeTask(id); void ipc.deleteTask(id)
     }
