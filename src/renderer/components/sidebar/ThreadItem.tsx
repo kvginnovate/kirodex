@@ -104,7 +104,7 @@ export const ThreadItem = memo(function ThreadItem({ task, isActive, onSelect, o
             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
         )}
       >
-        {dot && (
+        {!task.isDraft && dot && (
           <span className={cn('size-1.5 shrink-0 rounded-full', dot.color, dot.pulse && 'animate-pulse')} />
         )}
         {task.isArchived && (
@@ -128,9 +128,15 @@ export const ThreadItem = memo(function ThreadItem({ task, isActive, onSelect, o
             <TooltipContent side="right" align="start">{task.name}</TooltipContent>
           </Tooltip>
         )}
-        <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground/40 group-hover/thread:hidden">
-          {relativeTime(task.createdAt)}
-        </span>
+        {task.isDraft ? (
+          <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground group-hover/thread:hidden" aria-label="Draft">
+            Draft
+          </span>
+        ) : (
+          <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground/40 group-hover/thread:hidden">
+            {relativeTime(task.createdAt)}
+          </span>
+        )}
       </div>
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-14 items-center justify-end rounded-r-lg pr-1 group-hover/thread:flex"
         style={{ background: isActive
