@@ -1,5 +1,13 @@
 # Kirodex Tauri Activity Log
 
+## 2026-04-12 16:00 GST (Dubai)
+
+### Chat: Thread draft saving
+
+Added per-workspace draft saving so users don't lose typed content when navigating away from a new thread. Drafts are stored in-memory in the task store, auto-saved on keystroke (300ms debounce), and shown in the sidebar with a "Draft" badge. Clicking a draft navigates back to PendingChat with the content restored; sending clears the draft.
+
+**Modified:** `src/renderer/stores/taskStore.ts`, `src/renderer/hooks/useChatInput.ts`, `src/renderer/hooks/useSidebarTasks.ts`, `src/renderer/components/chat/ChatInput.tsx`, `src/renderer/components/chat/PendingChat.tsx`, `src/renderer/components/sidebar/ThreadItem.tsx`, `src/renderer/components/sidebar/TaskSidebar.tsx`
+
 ## 2026-04-12 02:19 (Dubai)
 
 Removed macOS private API usage and custom title bar styling. Switched to standard window decorations with HudWindow vibrancy and 12px corner radius.

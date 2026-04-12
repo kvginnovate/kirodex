@@ -349,7 +349,7 @@ export function App() {
                   {selectedTaskId ? (
                     <ChatPanel />
                   ) : pendingWorkspace ? (
-                    <PendingChat workspace={pendingWorkspace} />
+                    <PendingChat key={pendingWorkspace} workspace={pendingWorkspace} />
                   ) : (
                     <EmptyState />
                   )}
