@@ -109,9 +109,9 @@ export const TaskListDisplay = memo(function TaskListDisplay({ toolCall, allTool
         className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left transition-colors hover:bg-accent/5"
       >
         {expanded ? (
-          <IconChevronDown className="size-3 shrink-0 text-muted-foreground/40" />
+          <IconChevronDown className="size-3.5 shrink-0 text-muted-foreground/40" />
         ) : (
-          <IconChevronRight className="size-3 shrink-0 text-muted-foreground/40" />
+          <IconChevronRight className="size-3.5 shrink-0 text-muted-foreground/40" />
         )}
         <IconListCheck className="size-3.5 shrink-0 text-primary/60" />
         <span className="flex-1 truncate text-[13px] font-medium text-muted-foreground/70">

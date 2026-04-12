@@ -40,7 +40,7 @@ function renderWithMentions(text: string): ReactNode {
           onClick={() => useDiffStore.getState().openToFile(ref)}
           className="mx-0.5 inline-flex items-center gap-0.5 rounded bg-accent/40 px-1 py-px align-middle font-mono text-[13px] leading-normal text-foreground/60 transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
         >
-          <IconFileText className="size-2.5 shrink-0" />{ref.split('/').pop()}
+          <IconFileText className="size-3 shrink-0" />{ref.split('/').pop()}
         </button>
       )
     }
