@@ -51,7 +51,7 @@ pub struct AppSettings {
     pub project_prefs: Option<std::collections::HashMap<String, ProjectPrefs>>,
     #[serde(default)]
     pub has_onboarded: bool,
-    /// Opt-in flag for anonymous product analytics. Defaults to false; the user
+    /// Flag for anonymous product analytics. Defaults to true; the user
     /// must turn it on via Settings → Advanced.
     #[serde(default)]
     pub analytics_enabled: bool,
@@ -80,7 +80,7 @@ impl Default for AppSettings {
             sound_notifications: true,
             project_prefs: None,
             has_onboarded: false,
-            analytics_enabled: false,
+            analytics_enabled: true,
             analytics_anon_id: None,
         }
     }

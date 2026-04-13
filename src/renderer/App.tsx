@@ -189,7 +189,7 @@ export function App() {
   const debugOpen = useDebugStore((s) => s.isOpen);
   const settingsLoaded = useSettingsStore((s) => s.isLoaded);
   const hasOnboarded = useSettingsStore((s) => s.settings.hasOnboarded);
-  const analyticsEnabled = useSettingsStore((s) => s.settings.analyticsEnabled ?? false);
+  const analyticsEnabled = useSettingsStore((s) => s.settings.analyticsEnabled ?? true);
   const analyticsAnonId = useSettingsStore((s) => s.settings.analyticsAnonId ?? null);
   const fontSize = useSettingsStore((s) => s.settings.fontSize);
   const sidebarPosition = useSettingsStore((s) => s.settings.sidebarPosition ?? 'left');

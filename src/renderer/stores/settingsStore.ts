@@ -56,6 +56,7 @@ const defaultSettings: AppSettings = {
   agentProfiles: [],
   fontSize: 13,
   sidebarPosition: 'left',
+  analyticsEnabled: true,
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({

@@ -652,7 +652,7 @@ export const SettingsPanel = () => {
                         description="Feature usage and app version only. No prompts, code, file paths, branch names, or commit messages are ever sent."
                       >
                         <Switch
-                          checked={draft.analyticsEnabled ?? false}
+                          checked={draft.analyticsEnabled ?? true}
                           onCheckedChange={(checked) => updateDraft({ analyticsEnabled: checked })}
                           aria-label="Toggle anonymous analytics"
                         />
