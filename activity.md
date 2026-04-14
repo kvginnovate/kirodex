@@ -1,5 +1,13 @@
 # Activity Log
 
+## 2026-04-15 00:12 GST (Dubai)
+
+### Commit: fork_session + collapsible chat input
+
+Committed all 15 uncommitted files as `7060e04` on main. Covers the full fork_session wiring (Rust AcpCommand, Tauri command, IPC, store action, /fork slash command, fork buttons in sidebar/messages/header) and collapsible chat input toggle. Both `check:ts` and `vite build` passed before commit.
+
+**Modified:** activity.md
+
 ## 2026-04-14 22:15 GST (Dubai)
 
 ### ChatInput: Add collapsible input area
