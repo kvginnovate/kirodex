@@ -51,8 +51,13 @@ export const BranchSelector = memo(function BranchSelector({ workspace }: Branch
     }
   }, [workspace])
 
-  // Fetch current branch on mount
-  useEffect(() => { fetchBranches() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Fetch current branch on mount + refresh on window focus
+  useEffect(() => {
+    fetchBranches()
+    const handleFocus = () => { fetchBranches() }
+    window.addEventListener('focus', handleFocus)
+    return () => { window.removeEventListener('focus', handleFocus) }
+  }, [fetchBranches])
 
   // On open, refresh and focus search
   useEffect(() => {

@@ -1,5 +1,29 @@
 # Activity Log
 
+## 2026-04-14 16:49 GST (Dubai)
+
+### BranchSelector: Refresh branch name on window focus
+
+BranchSelector only fetched branches on mount and when the dropdown was opened, so the displayed branch name went stale after switching branches externally (e.g., in terminal). Added a `window` focus event listener that re-fetches branches when the user returns to the app. Also fixed the mount useEffect to properly depend on `fetchBranches` instead of suppressing the exhaustive-deps lint rule.
+
+**Modified:** `src/renderer/components/chat/BranchSelector.tsx`
+
+## 2026-04-14 16:46 GST (Dubai)
+
+### SlashCommandPicker + SlashPanels: Add fuzzy search to slash commands and sub-menus
+
+Extracted `fuzzyScore` into a shared `lib/fuzzy-search.ts` util. SlashCommandPicker now uses fuzzy matching (name + description) instead of `startsWith`. ModelPickerPanel shows a search input when >5 models with fuzzy filtering by name/ID. AgentListPanel shows a search input when >5 total items, fuzzy-filtering built-in agents, .kiro agents, and MCP servers with an empty-state message.
+
+**Modified:** `src/renderer/lib/fuzzy-search.ts`, `src/renderer/components/chat/SlashCommandPicker.tsx`, `src/renderer/components/chat/SlashPanels.tsx`, `src/renderer/components/chat/FileMentionPicker.tsx`
+
+## 2026-04-14 16:44 GST (Dubai)
+
+### FileMentionPicker: Apply fuzzy search to agents and skills in @ panel
+
+Kiro items (built-in agents, .kiro agents, skills) in the @ mention picker now use the same `fuzzyScore` function as file search instead of simple `.includes()` filtering. Matches are scored and sorted by relevance (exact > starts-with > contains > subsequence). Agent descriptions are also fuzzy-matched with a lower priority weight.
+
+**Modified:** `src/renderer/components/chat/FileMentionPicker.tsx`
+
 ## 2026-04-14 16:40 GST (Dubai)
 
 ### FileMentionPicker: @ mention shows agents with styled pills
