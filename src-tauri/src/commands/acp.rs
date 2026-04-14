@@ -780,7 +780,7 @@ pub fn task_create(
     } else {
         ""
     };
-    let full_prompt = format!("{system_prefix}{question_format}{}{json_report_suffix}", params.prompt);
+    let full_prompt = format!("{system_prefix}{}{json_report_suffix}", params.prompt);
     let _ = handle.cmd_tx.send(AcpCommand::Prompt(full_prompt));
 
     state.connections.lock().map_err(|e| format!("Lock poisoned: {e}"))?.insert(id, handle);
