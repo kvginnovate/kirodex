@@ -731,9 +731,19 @@ export function initTaskListeners(): () => void {
   })
 
   const unsub11 = ipc.onCommandsUpdate(({ commands, mcpServers }) => {
+    // mcpServers may arrive as a flat array or a grouped object (e.g. { "other": [...] }).
+    // Normalize to a flat LiveMcpServer[] so the UI can always .map() over it.
+    let flatServers: import('@/stores/settingsStore').LiveMcpServer[] | undefined
+    if (mcpServers) {
+      if (Array.isArray(mcpServers)) {
+        flatServers = mcpServers
+      } else if (typeof mcpServers === 'object') {
+        flatServers = Object.values(mcpServers as Record<string, import('@/stores/settingsStore').LiveMcpServer[]>).flat()
+      }
+    }
     useSettingsStore.setState({
       availableCommands: commands,
-      ...(mcpServers ? { liveMcpServers: mcpServers } : {}),
+      ...(flatServers ? { liveMcpServers: flatServers } : {}),
     })
   })
 

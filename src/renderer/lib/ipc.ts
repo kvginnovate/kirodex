@@ -159,7 +159,7 @@ export const ipc = {
     tauriListen('mcp_update', cb),
   onMcpConnecting: (cb: () => void): UnsubscribeFn =>
     tauriListen('mcp_connecting', cb),
-  onCommandsUpdate: (cb: (data: { taskId: string; commands: Array<{ name: string; description?: string; inputType?: string }>; mcpServers?: Array<{ name: string; status: string; toolCount: number }> }) => void): UnsubscribeFn =>
+  onCommandsUpdate: (cb: (data: { taskId: string; commands: Array<{ name: string; description?: string; inputType?: string }>; mcpServers?: Array<{ name: string; status: string; toolCount: number }> | Record<string, Array<{ name: string; status: string; toolCount: number }>> }) => void): UnsubscribeFn =>
     tauriListen('commands_update', cb),
   onTaskError: (cb: (data: { taskId: string; message: string }) => void): UnsubscribeFn =>
     tauriListen('task_error', cb),
