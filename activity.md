@@ -1,5 +1,29 @@
 # Activity Log
 
+## 2026-04-14 21:00 GST (Dubai)
+
+### FileMentionPicker: Add X close button and wire onDismiss
+
+Added an X close button to the file/agent mention picker dropdown. Wired the previously no-op `onDismiss` to `dismissMention` from `useFileMention` so clicking X actually closes the picker.
+
+**Modified:** `src/renderer/components/chat/FileMentionPicker.tsx`, `src/renderer/components/chat/ChatInput.tsx`
+
+## 2026-04-14 20:58 GST (Dubai)
+
+### SlashPanels: Add X close button to dropdown panels
+
+Added an X close button to the `PanelShell` wrapper so users can dismiss the agent/model/usage dropdown without typing. The button renders in the top-right corner of every panel variant and calls the existing `onDismiss` handler.
+
+**Modified:** `src/renderer/components/chat/SlashPanels.tsx`
+
+## 2026-04-15 00:53 GST (Dubai)
+
+### Chat: Replace virtualizer with plain DOM flow to fix layout overlap
+
+Replaced `@tanstack/react-virtual` virtualizer in `MessageList.tsx` with a plain scrolling list. The virtualizer's absolute-positioning model caused persistent row overlap when content heights changed dynamically (streaming text, tool call updates, task list expansions). A chat message list with typically < 200 rows doesn't need virtualization. Auto-scroll to bottom behavior preserved.
+
+**Modified:** `src/renderer/components/chat/MessageList.tsx`
+
 ## 2026-04-14 22:53 GST (Dubai)
 
 ### Chat: Fix message list layout overlap and shift
