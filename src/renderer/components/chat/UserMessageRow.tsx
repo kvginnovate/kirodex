@@ -125,14 +125,16 @@ export const UserMessageRow = memo(function UserMessageRow({ row }: { row: UserM
 
   const { text: cleanText, attachments: parsedAttachments } = useMemo(() => parseAttachments(row.content), [row.content])
 
+  const isQuestionAnswer = !!row.questionAnswers?.length
+
   return (
     <div data-testid="user-message-row" className="pb-4" data-timeline-row-kind="user-message">
-      <div className="flex justify-end">
-        <div className="group relative w-fit max-w-[85%] sm:max-w-[75%]">
-          <div className="rounded-2xl rounded-br-md bg-[#2c2e35] px-4 py-2.5">
-            {row.questionAnswers?.length ? (
-              <CollapsedAnswers questionAnswers={row.questionAnswers} />
-            ) : (
+      <div className={isQuestionAnswer ? 'flex justify-end' : 'flex justify-end'}>
+        <div className={`group relative w-fit ${isQuestionAnswer ? 'max-w-[90%] sm:max-w-[85%]' : 'max-w-[85%] sm:max-w-[75%]'}`}>
+          {isQuestionAnswer ? (
+            <CollapsedAnswers questionAnswers={row.questionAnswers!} />
+          ) : (
+          <div className="rounded-2xl rounded-br-md bg-[#1a1b1e] px-4 py-2.5">
               <div className="space-y-2">
                 {cleanText && (
                   <p className="whitespace-pre-wrap break-words text-[15px] leading-[1.7] text-foreground">
@@ -147,8 +149,8 @@ export const UserMessageRow = memo(function UserMessageRow({ row }: { row: UserM
                   </div>
                 )}
               </div>
-            )}
           </div>
+          )}
           <div className="mt-1 flex items-center justify-end gap-1.5 px-1">
             <Tooltip>
               <TooltipTrigger asChild>
