@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { IconPaperclip, IconClipboard, IconX } from '@tabler/icons-react'
+import { IconPaperclip, IconClipboard, IconX, IconChevronDown } from '@tabler/icons-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { SlashCommandPicker } from './SlashCommandPicker'
@@ -14,6 +14,8 @@ import { PlanToggle } from './PlanToggle'
 import { AutoApproveToggle } from './AutoApproveToggle'
 import { useChatInput } from '@/hooks/useChatInput'
 import { useSettingsStore } from '@/stores/settingsStore'
+import type { PastedChunk } from '@/hooks/useChatInput'
+import type { Attachment, ProjectFile } from '@/types'
 
 /** Pill-shaped group wrapper for toolbar items */
 const ToolbarGroup = ({ children, className }: { children: React.ReactNode; className?: string }) => (
@@ -28,6 +30,91 @@ const Dot = () => <span className="mx-0.5 size-[3px] shrink-0 rounded-full bg-bo
 /** Detect macOS for keyboard shortcut labels */
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
 const MOD_KEY = IS_MAC ? '⌘' : 'Ctrl'
+
+/** Max pills before collapsing into a summary */
+export const PILLS_COLLAPSE_THRESHOLD = 4
+
+interface PillsRowProps {
+  mentionedFiles: readonly ProjectFile[]
+  nonImageAttachments: readonly Attachment[]
+  pastedChunks: readonly PastedChunk[]
+  onRemoveMention: (path: string) => void
+  onRemoveAttachment: (id: string) => void
+  onRemoveChunk: (id: number) => void
+}
+
+export const PillsRow = memo(function PillsRow({ mentionedFiles, nonImageAttachments, pastedChunks, onRemoveMention, onRemoveAttachment, onRemoveChunk }: PillsRowProps) {
+  const totalCount = mentionedFiles.length + nonImageAttachments.length + pastedChunks.length
+  const [isExpanded, setIsExpanded] = useState(false)
+  const isCollapsible = totalCount > PILLS_COLLAPSE_THRESHOLD
+  const showAll = !isCollapsible || isExpanded
+
+  const handleToggle = useCallback(() => setIsExpanded((v) => !v), [])
+
+  // Build summary counts for collapsed state
+  const summaryParts: string[] = []
+  if (mentionedFiles.length > 0) summaryParts.push(`${mentionedFiles.length} file${mentionedFiles.length > 1 ? 's' : ''}`)
+  if (nonImageAttachments.length > 0) summaryParts.push(`${nonImageAttachments.length} attachment${nonImageAttachments.length > 1 ? 's' : ''}`)
+  if (pastedChunks.length > 0) summaryParts.push(`${pastedChunks.length} pasted`)
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 mb-1" data-testid="pills-row">
+      {isCollapsible && !isExpanded ? (
+        <button
+          type="button"
+          onClick={handleToggle}
+          data-testid="pills-expand-button"
+          className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted/40 px-2.5 text-[12px] font-medium text-foreground/50 transition-colors hover:bg-muted/60 hover:text-foreground/70"
+          aria-label={`${totalCount} items attached, click to expand`}
+        >
+          <IconPaperclip className="size-3.5" aria-hidden />
+          <span>{summaryParts.join(', ')}</span>
+          <IconChevronDown className="size-3.5" aria-hidden />
+        </button>
+      ) : (
+        <>
+          {mentionedFiles.map((f) => (
+            <FileMentionPill key={f.path} path={f.path} onRemove={() => onRemoveMention(f.path)} />
+          ))}
+          {nonImageAttachments.length > 0 && (
+            <AttachmentPreview attachments={nonImageAttachments} onRemove={onRemoveAttachment} />
+          )}
+          {pastedChunks.map((chunk) => (
+            <span
+              key={chunk.id}
+              data-testid="pasted-chunk-pill"
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12px] font-medium align-middle bg-muted/40 text-foreground/60"
+            >
+              <IconClipboard className="size-3.5 shrink-0 text-foreground/30" aria-hidden />
+              <span className="max-w-[120px] truncate">Pasted #{chunk.id}</span>
+              <span className="text-foreground/25">+{chunk.lines > 1 ? `${chunk.lines}L` : `${chunk.chars}c`}</span>
+              <button
+                type="button"
+                onClick={() => onRemoveChunk(chunk.id)}
+                aria-label={`Remove pasted text #${chunk.id}`}
+                className="ml-0.5 flex size-4 items-center justify-center rounded text-foreground/25 hover:text-foreground/50"
+              >
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 1l6 6M7 1l-6 6" /></svg>
+              </button>
+            </span>
+          ))}
+          {isCollapsible && (
+            <button
+              type="button"
+              onClick={handleToggle}
+              data-testid="pills-collapse-button"
+              className="inline-flex h-7 items-center gap-0.5 rounded-md px-1.5 text-[11px] text-foreground/30 transition-colors hover:text-foreground/50"
+              aria-label="Collapse attachments"
+            >
+              <IconChevronDown className="size-3.5 rotate-180" aria-hidden />
+              <span>Less</span>
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+})
 
 interface ChatInputProps {
   disabled?: boolean
@@ -180,33 +267,14 @@ export const ChatInput = memo(function ChatInput({ disabled, disabledReason, con
             )}
             {/* Pills row — mentions, non-image attachments, pasted text */}
             {(mentionedFiles.length > 0 || nonImageAttachments.length > 0 || pastedChunks.length > 0) && (
-              <div className="flex flex-wrap items-center gap-1 mb-1">
-                {mentionedFiles.map((f) => (
-                  <FileMentionPill key={f.path} path={f.path} onRemove={() => handleRemoveMention(f.path)} />
-                ))}
-                {nonImageAttachments.length > 0 && (
-                  <AttachmentPreview attachments={nonImageAttachments} onRemove={handleRemoveAttachment} />
-                )}
-                {pastedChunks.map((chunk) => (
-                  <span
-                    key={chunk.id}
-                    data-testid="pasted-chunk-pill"
-                    className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12px] font-medium align-middle bg-muted/40 text-foreground/60"
-                  >
-                    <IconClipboard className="size-3.5 shrink-0 text-foreground/30" aria-hidden />
-                    <span className="max-w-[120px] truncate">Pasted #{chunk.id}</span>
-                    <span className="text-foreground/25">+{chunk.lines > 1 ? `${chunk.lines}L` : `${chunk.chars}c`}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveChunk(chunk.id)}
-                      aria-label={`Remove pasted text #${chunk.id}`}
-                      className="ml-0.5 flex size-4 items-center justify-center rounded text-foreground/25 hover:text-foreground/50"
-                    >
-                      <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 1l6 6M7 1l-6 6" /></svg>
-                    </button>
-                  </span>
-                ))}
-              </div>
+              <PillsRow
+                mentionedFiles={mentionedFiles}
+                nonImageAttachments={nonImageAttachments}
+                pastedChunks={pastedChunks}
+                onRemoveMention={handleRemoveMention}
+                onRemoveAttachment={handleRemoveAttachment}
+                onRemoveChunk={handleRemoveChunk}
+              />
             )}
             {/* Scroll shadow at top of textarea when content overflows */}
             <div
@@ -230,7 +298,7 @@ export const ChatInput = memo(function ChatInput({ disabled, disabledReason, con
               disabled={disabled}
               rows={1}
               className={cn(
-                'block max-h-[200px] min-h-[70px] w-full resize-none bg-transparent leading-[1.6] text-foreground outline-none placeholder:text-muted-foreground/35',
+                'block max-h-[200px] min-h-[70px] w-full resize-none rounded-lg bg-transparent leading-[1.6] text-foreground outline-none ring-offset-card focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 placeholder:text-muted-foreground/35',
                 disabled && 'cursor-not-allowed opacity-50',
               )}
               style={{ overflow: 'auto', fontFamily: 'inherit', caretColor: 'var(--foreground)' }}
@@ -311,9 +379,10 @@ export const ChatInput = memo(function ChatInput({ disabled, disabledReason, con
                       aria-label={isRunning ? 'Queue message (Enter)' : 'Send message (Enter)'}
                       data-testid="send-button"
                       className={cn(
-                        'relative flex h-8 w-8 items-center justify-center rounded-full transition-all duration-150',
-                        buttonBg, 'text-white hover:scale-105',
-                        'disabled:pointer-events-none disabled:opacity-50 disabled:hover:scale-100',
+                        'relative flex h-8 w-8 items-center justify-center rounded-full text-white transition-all duration-200 ease-out',
+                        canSend ? buttonBg : 'bg-muted/60',
+                        canSend && 'hover:scale-105',
+                        'disabled:pointer-events-none disabled:hover:scale-100',
                       )}
                     >
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">

@@ -1,3 +1,35 @@
+## 2026-04-14 14:05 GST (Dubai)
+
+### Chat: Focus ring, send transition, collapsible pills, and unit tests
+
+Added `focus-visible:ring-2` to the textarea for keyboard-only users. Send button now animates between `bg-muted/60` (disabled) and the colored background (enabled) with `duration-200 ease-out`. Extracted `PillsRow` component that collapses into a summary ("3 files, 2 attachments") when total pill count exceeds 4, with expand/collapse toggle. Added 12 unit tests: 6 for DragOverlay visible/hidden states and 6 for PillsRow collapse behavior.
+
+**Modified:** `src/renderer/components/chat/ChatInput.tsx`, `src/renderer/components/chat/DragOverlay.test.tsx`, `src/renderer/components/chat/PillsRow.test.tsx`
+
+## 2026-04-14 13:50 GST (Dubai)
+
+### Updater: Increase check frequency and add sidebar badge
+
+Changed update check interval from 4 hours to 30 minutes. Added a `triggerDownload` callback to `updateStore` so the sidebar can trigger downloads without duplicating the hook. Added an "Update Now" badge to the Settings button in `SidebarFooter` that appears when an update is available and triggers `downloadAndInstall` on click.
+
+**Modified:** `src/renderer/hooks/useUpdateChecker.ts`, `src/renderer/stores/updateStore.ts`, `src/renderer/components/sidebar/SidebarFooter.tsx`
+
+## 2026-04-14 13:56 GST (Dubai)
+
+### Chat: Plan handoff card sends message and improved copy
+
+Updated PlanHandoffCard to send "Go ahead working on the plan" to the coding agent after switching modes. Improved copy: title is now "Start building", subtitle is "Switch to the coding agent and execute this plan", icon changed to rocket. Added switching state to prevent double-clicks.
+
+**Modified:** `src/renderer/components/chat/PlanHandoffCard.tsx`
+
+## 2026-04-14 12:44 GST (Dubai)
+
+### Chat: Plan agent handoff card
+
+Added a "Switch to Default Agent and develop" card that appears below assistant text when the plan agent prompts to exit. Detects the handoff pattern via regex, renders a teal-styled button card, and switches mode to `kiro_default` on click via `ipc.setMode()`. Card only shows when not streaming and the current mode is `kiro_planner`.
+
+**Modified:** `src/renderer/components/chat/PlanHandoffCard.tsx`, `src/renderer/components/chat/AssistantTextRow.tsx`
+
 ## 2026-04-14 12:30 GST (Dubai)
 
 ### Chat: Read tool call code viewer
