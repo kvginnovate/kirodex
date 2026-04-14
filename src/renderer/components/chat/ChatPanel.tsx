@@ -59,6 +59,9 @@ async function sendMessageDirect(msg: string): Promise<void> {
     const draft = useTaskStore.getState().tasks[task.id]
     const messages = draft?.messages.length ? draft.messages : [userMsg]
     state.upsertTask({ ...created, messages })
+    if (currentModeId && currentModeId !== 'kiro_default') {
+      useTaskStore.getState().setTaskMode(created.id, currentModeId)
+    }
     state.setSelectedTask(created.id)
   } else {
     ipc.sendMessage(task.id, msg)

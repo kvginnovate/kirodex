@@ -36,6 +36,8 @@ interface TaskStore {
   _suppressDraftSave: string | null
   /** Task ID from the last desktop notification, cleared after navigation */
   lastNotifiedTaskId: string | null
+  /** Per-thread mode (e.g. 'kiro_planner') so toggling plan mode in one thread doesn't affect others */
+  taskModes: Record<string, string>
   setSelectedTask: (id: string | null) => void
   setView: (view: 'chat' | 'dashboard') => void
   setNewProjectOpen: (open: boolean) => void
@@ -64,6 +66,7 @@ interface TaskStore {
   setDraft: (workspace: string, content: string) => void
   removeDraft: (workspace: string) => void
   toggleTerminal: (taskId: string) => void
+  setTaskMode: (taskId: string, modeId: string) => void
   loadTasks: () => Promise<void>
   setConnected: (v: boolean) => void
   persistHistory: () => void
@@ -91,10 +94,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   drafts: {},
   _suppressDraftSave: null,
   lastNotifiedTaskId: null,
+  taskModes: {},
 
   setSelectedTask: (id) => {
     if (get().selectedTaskId === id) return
     set({ selectedTaskId: id })
+    const modeId = id ? (get().taskModes[id] ?? 'kiro_default') : 'kiro_default'
+    useSettingsStore.setState({ currentModeId: modeId })
   },
   setView: (view) => {
     if (get().view === view) return
@@ -117,12 +123,15 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     const deletedTaskIds = new Set(s.deletedTaskIds)
     taskIds.forEach((id) => deletedTaskIds.add(id))
     const { [workspace]: _, ...drafts } = s.drafts
+    const taskModes = { ...s.taskModes }
+    taskIds.forEach((id) => { delete taskModes[id] })
     return {
       projects: s.projects.filter((p) => p !== workspace),
       tasks,
       selectedTaskId,
       deletedTaskIds,
       drafts,
+      taskModes,
       pendingWorkspace: s.pendingWorkspace === workspace ? null : s.pendingWorkspace,
       view: selectedTaskId === null && s.view === 'chat' ? 'dashboard' : s.view,
     }
@@ -196,6 +205,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       const { [id]: _c, ...chunks } = state.streamingChunks
       const { [id]: _t, ...thinking } = state.thinkingChunks
       const { [id]: _tc, ...tools } = state.liveToolCalls
+      const { [id]: _m, ...modes } = state.taskModes
       const deletedTaskIds = new Set(state.deletedTaskIds)
       deletedTaskIds.add(id)
       return {
@@ -203,6 +213,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         streamingChunks: chunks,
         thinkingChunks: thinking,
         liveToolCalls: tools,
+        taskModes: modes,
         deletedTaskIds,
         selectedTaskId: state.selectedTaskId === id ? null : state.selectedTaskId,
       }
@@ -405,6 +416,11 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     if (next.has(taskId)) next.delete(taskId); else next.add(taskId)
     return { terminalOpenTasks: next }
   }),
+
+  setTaskMode: (taskId, modeId) => {
+    if (get().taskModes[taskId] === modeId) return
+    set((s) => ({ taskModes: { ...s.taskModes, [taskId]: modeId } }))
+  },
 
   loadTasks: async () => {
     try {

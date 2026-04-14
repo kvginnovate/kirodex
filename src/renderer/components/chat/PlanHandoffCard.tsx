@@ -21,6 +21,7 @@ export const PlanHandoffCard = memo(function PlanHandoffCard() {
     if (!taskId || isSwitching) return
     setIsSwitching(true)
     useSettingsStore.setState({ currentModeId: 'kiro_default' })
+    useTaskStore.getState().setTaskMode(taskId, 'kiro_default')
     ipc.setMode(taskId, 'kiro_default').then(() => {
       const state = useTaskStore.getState()
       const task = state.tasks[taskId]

@@ -217,6 +217,10 @@ export function App() {
       ? (tasks[selectedTaskId]?.workspace ?? null)
       : null;
     useSettingsStore.getState().setActiveWorkspace(workspace);
+    // Reset mode to default when entering a new/pending thread (no selectedTaskId)
+    if (!selectedTaskId) {
+      useSettingsStore.setState({ currentModeId: 'kiro_default' });
+    }
   }, [selectedTaskId]);
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);

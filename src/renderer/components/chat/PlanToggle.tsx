@@ -14,18 +14,18 @@ const PlanIcon = () => (
 
 export const PlanToggle = memo(function PlanToggle() {
   const currentModeId = useSettingsStore((s) => s.currentModeId)
-  const modes = useSettingsStore((s) => s.availableModes)
   const isPlan = currentModeId === 'kiro_planner'
 
   const handleToggle = useCallback(() => {
     const nextMode = isPlan ? 'kiro_default' : 'kiro_planner'
     useSettingsStore.setState({ currentModeId: nextMode })
     const taskId = useTaskStore.getState().selectedTaskId
-    if (taskId) ipc.setMode(taskId, nextMode)
+    if (taskId) {
+      useTaskStore.getState().setTaskMode(taskId, nextMode)
+      ipc.setMode(taskId, nextMode).catch(() => {})
+      ipc.sendMessage(taskId, `/agent ${nextMode}`).catch(() => {})
+    }
   }, [isPlan])
-
-  const hasPlanMode = modes.some((m) => m.id === 'kiro_planner')
-  if (!hasPlanMode) return null
 
   return (
     <Tooltip>

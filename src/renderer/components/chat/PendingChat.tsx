@@ -29,6 +29,9 @@ export function PendingChat({ workspace }: PendingChatProps) {
     const modeId = currentModeId && currentModeId !== 'kiro_default' ? currentModeId : undefined
     const created = await ipc.createTask({ name, workspace, prompt: msg, autoApprove, modeId })
     upsertTask(created)
+    if (currentModeId && currentModeId !== 'kiro_default') {
+      useTaskStore.getState().setTaskMode(created.id, currentModeId)
+    }
     setPendingWorkspace(null)
     setSelectedTask(created.id)
   }, [workspace, upsertTask, setSelectedTask, setPendingWorkspace, removeDraft])

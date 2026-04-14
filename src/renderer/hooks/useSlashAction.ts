@@ -33,9 +33,11 @@ const switchMode = (modeId: string, label: string): void => {
   track('feature_used', { feature: 'mode_switch', detail: modeId })
   const taskId = useTaskStore.getState().selectedTaskId
   if (taskId) {
+    useTaskStore.getState().setTaskMode(taskId, modeId)
     ipc.setMode(taskId, modeId).catch(() => {
       addSystemMessage(`⚠️ Failed to sync ${label} mode with backend`)
     })
+    ipc.sendMessage(taskId, `/agent ${modeId}`).catch(() => {})
   }
 }
 
