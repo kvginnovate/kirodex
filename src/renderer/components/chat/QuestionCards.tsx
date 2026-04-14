@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useEffect } from "react";
-import { IconChevronLeft, IconChevronRight, IconCornerDownLeft } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight, IconCornerDownLeft, IconMessageCircleQuestion, IconCircleCheckFilled, IconCircle } from "@tabler/icons-react";
 import { useTaskStore } from "@/stores/taskStore";
 import { ipc } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
@@ -39,7 +39,6 @@ export const QuestionCards = memo(function QuestionCards({
   const isLastPage = page === total - 1
 
   const handleContinue = useCallback(() => {
-    // If not on last page and not all answered, navigate to next unanswered
     if (!isLastPage && !isAllAnswered) {
       const nextUnanswered = blocks.findIndex(
         (b, i) => i > page && !selections[b.number] && b.options.length > 0,
@@ -48,11 +47,9 @@ export const QuestionCards = memo(function QuestionCards({
         setPage(nextUnanswered);
         return;
       }
-      // Jump to last page if all option-questions are answered
       setPage(total - 1);
       return;
     }
-    // All answered — submit
     if (!isAllAnswered) return;
     const state = useTaskStore.getState();
     const id = state.selectedTaskId;
@@ -102,7 +99,6 @@ export const QuestionCards = memo(function QuestionCards({
     setDismissed(true);
   }, []);
 
-  // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (dismissed || total === 0) return;
@@ -128,9 +124,8 @@ export const QuestionCards = memo(function QuestionCards({
         setPage((p) => Math.min(total - 1, p + 1));
         return;
       }
-      // Number keys to select options
       if (current?.options.length) {
-        const idx = e.key.charCodeAt(0) - 97; // a=0, b=1, c=2...
+        const idx = e.key.charCodeAt(0) - 97;
         if (idx >= 0 && idx < current.options.length) {
           handleSelect(current.number, current.options[idx].letter);
         }
@@ -146,49 +141,68 @@ export const QuestionCards = memo(function QuestionCards({
     handleDismiss,
     handleContinue,
     handleSelect,
+    isAllAnswered,
+    isLastPage,
+    hasAnyInput,
   ]);
 
   if (blocks.length === 0 || dismissed) return null;
 
   const selectedCount = Object.keys(selections).length;
+  const canSubmit = isAllAnswered || isLastPage ? isAllAnswered : hasAnyInput;
 
   return (
-    <div className="my-4 rounded-2xl border border-border bg-muted shadow-lg">
-      {/* Header: question + pagination */}
-      <div className="flex items-start gap-3 px-6 pt-5 pb-4">
-        <p className="flex-1 text-[15px] font-medium leading-relaxed text-foreground">
-          {current?.question}
-        </p>
+    <div className="my-4 overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-b from-primary/[0.04] to-transparent shadow-sm">
+      {/* Accent header bar */}
+      <div className="flex items-center gap-2 border-b border-primary/10 bg-primary/[0.06] px-5 py-2.5">
+        <IconMessageCircleQuestion className="size-4 text-primary" />
+        <span className="text-[12px] font-semibold tracking-wide text-primary">
+          {total > 1 ? `Question ${page + 1} of ${total}` : 'Question'}
+        </span>
+
+        {/* Step dots for multi-question */}
         {total > 1 && (
-          <div className="flex shrink-0 items-center gap-1 text-[12px] text-muted-foreground/70">
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="rounded p-0.5 transition-colors hover:text-foreground disabled:opacity-20"
-              aria-label="Previous question"
-            >
-              <IconChevronLeft className="size-3.5" />
-            </button>
-            <span className="tabular-nums">
-              {page + 1} of {total}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.min(total - 1, p + 1))}
-              disabled={page === total - 1}
-              className="rounded p-0.5 transition-colors hover:text-foreground disabled:opacity-20"
-              aria-label="Next question"
-            >
-              <IconChevronRight className="size-3.5" />
-            </button>
+          <div className="ml-auto flex items-center gap-1.5">
+            {blocks.map((b, i) => {
+              const isAnswered = !!selections[b.number];
+              const isCurrent = i === page;
+              return (
+                <button
+                  key={b.number}
+                  type="button"
+                  onClick={() => setPage(i)}
+                  className={cn(
+                    "flex size-5 items-center justify-center rounded-full text-[10px] font-bold transition-all",
+                    isCurrent
+                      ? "bg-primary text-primary-foreground scale-110"
+                      : isAnswered
+                        ? "bg-primary/20 text-primary"
+                        : "bg-muted text-muted-foreground/50 hover:bg-muted/80",
+                  )}
+                  aria-label={`Go to question ${i + 1}`}
+                >
+                  {isAnswered && !isCurrent ? (
+                    <IconCircleCheckFilled className="size-3.5" />
+                  ) : (
+                    <span>{i + 1}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
 
+      {/* Question text */}
+      <div className="px-5 pt-4 pb-3">
+        <p className="text-[15px] font-medium leading-relaxed text-foreground">
+          {current?.question}
+        </p>
+      </div>
+
       {/* Options */}
       {current?.options.length > 0 && (
-        <div className="flex flex-col gap-1 px-4 pb-3">
+        <div className="flex flex-col gap-1.5 px-4 pb-3">
           {current.options.map((opt) => {
             const isSelected = selections[current.number] === opt.letter;
             return (
@@ -197,73 +211,117 @@ export const QuestionCards = memo(function QuestionCards({
                 type="button"
                 onClick={() => handleSelect(current.number, opt.letter)}
                 className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-2.5 text-left text-[14px] transition-all",
+                  "group flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all",
                   isSelected
-                    ? "border-primary/30 bg-primary/8 text-foreground"
-                    : "border-border/60 bg-transparent text-foreground/80 hover:border-primary/30 hover:bg-muted/50",
+                    ? "border-primary/40 bg-primary/10 shadow-sm"
+                    : "border-border/40 bg-background/50 hover:border-primary/25 hover:bg-primary/[0.03]",
                 )}
               >
-                <span
-                  className={cn(
-                    "shrink-0 font-mono text-[13px] font-semibold",
-                    isSelected ? "text-primary" : "text-gray-300",
+                {/* Radio indicator */}
+                <span className={cn(
+                  "flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition-all",
+                  isSelected
+                    ? "border-primary bg-primary"
+                    : "border-muted-foreground/25 group-hover:border-primary/40",
+                )}>
+                  {isSelected && (
+                    <span className="size-2 rounded-full bg-primary-foreground" />
                   )}
-                >
-                  {opt.letter}.
                 </span>
-                <span
-                  className={cn("text-[13px]", isSelected && "font-medium")}
-                >
-                  {opt.text}
-                </span>
+
+                <div className="flex flex-1 items-baseline gap-2">
+                  <kbd className={cn(
+                    "shrink-0 rounded border px-1.5 py-0.5 font-mono text-[11px] font-semibold transition-all",
+                    isSelected
+                      ? "border-primary/30 bg-primary/15 text-primary"
+                      : "border-border/50 bg-muted/50 text-muted-foreground/50 group-hover:text-muted-foreground/70",
+                  )}>
+                    {opt.letter}
+                  </kbd>
+                  <span className={cn(
+                    "text-[13px] leading-snug transition-colors",
+                    isSelected ? "font-medium text-foreground" : "text-foreground/75",
+                  )}>
+                    {opt.text}
+                  </span>
+                </div>
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Extra text input for custom answers */}
-      <div className="px-6 pb-4">
+      {/* Extra text input */}
+      <div className="px-5 pb-4">
         <input
           type="text"
           value={currentExtra}
           onChange={(e) => setExtraText((prev) => ({ ...prev, [current?.number ?? '']: e.target.value }))}
           placeholder="Add extra context (optional)"
-          className="w-full rounded-lg border border-border/50 bg-background/50 px-3.5 py-2 text-[13px] text-black dark:text-white outline-none placeholder:text-muted-foreground/60 focus:border-primary/30"
+          className="w-full rounded-xl border border-border/40 bg-background/60 px-3.5 py-2.5 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus:border-primary/30 focus:ring-1 focus:ring-primary/10"
         />
       </div>
 
-      {/* Footer: dismiss + continue */}
-      <div className="flex items-center justify-end gap-2 border-t border-border/60 px-5 py-3">
-        {selectedCount > 0 && total > 1 && (
-          <span className="mr-auto text-[11px] text-muted-foreground/70">
-            {selectedCount} of {total} answered
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={handleDismiss}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] text-muted-foreground/60 transition-colors hover:text-foreground"
-        >
-          Dismiss
-          <kbd className="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px] font-medium">
-            ESC
-          </kbd>
-        </button>
-        <button
-          type="button"
-          onClick={handleContinue}
-          disabled={isLastPage || isAllAnswered ? !isAllAnswered : !hasAnyInput}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg px-4 py-2 text-[12px] font-medium transition-all",
-            (isLastPage || isAllAnswered ? isAllAnswered : hasAnyInput)
-              ? "bg-primary text-primary-foreground hover:bg-primary/90"
-              : "bg-muted text-muted-foreground/70 cursor-not-allowed",
+      {/* Footer */}
+      <div className="flex items-center justify-between border-t border-primary/10 bg-primary/[0.02] px-5 py-3">
+        <div className="flex items-center gap-3">
+          {selectedCount > 0 && total > 1 && (
+            <span className="text-[11px] text-muted-foreground/60">
+              {selectedCount}/{total} answered
+            </span>
           )}
-        >
-          {isAllAnswered || isLastPage ? "Submit" : "Next"}
-          <IconCornerDownLeft className="size-3" />
-        </button>
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-muted-foreground/50 transition-colors hover:text-foreground"
+          >
+            Dismiss
+            <kbd className="rounded border border-border/40 bg-muted/40 px-1 py-0.5 text-[10px] font-medium">
+              esc
+            </kbd>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Prev/Next arrows for multi-question */}
+          {total > 1 && (
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="rounded-lg p-1.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-20"
+                aria-label="Previous question"
+              >
+                <IconChevronLeft className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(total - 1, p + 1))}
+                disabled={isLastPage}
+                className="rounded-lg p-1.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-20"
+                aria-label="Next question"
+              >
+                <IconChevronRight className="size-4" />
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleContinue}
+            disabled={!canSubmit}
+            className={cn(
+              "flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13px] font-medium transition-all",
+              canSubmit
+                ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 active:scale-[0.98]"
+                : "bg-muted text-muted-foreground/40 cursor-not-allowed",
+            )}
+          >
+            {isAllAnswered || isLastPage ? "Submit" : "Next"}
+            <IconCornerDownLeft className="size-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
