@@ -210,7 +210,7 @@ export const ChatInput = memo(function ChatInput({ disabled, disabledReason, con
     <div data-testid="chat-input" className="px-4 pt-1.5 pb-4 sm:px-6 sm:pt-2 sm:pb-5">
       <div className="mx-auto w-full min-w-0 max-w-3xl lg:max-w-4xl xl:max-w-5xl">
         <div className={cn(
-          'relative rounded-[20px] border bg-[#2c2e35] transition-colors duration-200',
+          'relative rounded-[20px] border-2 bg-[#1a1b1e] transition-colors duration-200',
           borderIdle, borderFocus,
           isDragOver && 'border-primary/50',
         )}>
@@ -279,7 +279,7 @@ export const ChatInput = memo(function ChatInput({ disabled, disabledReason, con
             {/* Scroll shadow at top of textarea when content overflows */}
             <div
               className={cn(
-                'pointer-events-none absolute left-3 right-3 h-6 bg-gradient-to-b from-[#2c2e35] to-transparent transition-opacity duration-200 sm:left-4 sm:right-4',
+                'pointer-events-none absolute left-3 right-3 h-6 bg-gradient-to-b from-[#1a1b1e] to-transparent transition-opacity duration-200 sm:left-4 sm:right-4',
                 hasScrollShadow ? 'opacity-100' : 'opacity-0',
               )}
               style={{ top: 'calc(0.875rem)' }}

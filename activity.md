@@ -1,5 +1,29 @@
 # Activity Log
 
+## 2026-04-14 16:37 GST (Dubai)
+
+### ChatInput: Increase border width to 2px
+
+Changed the ChatInput container border from `border` (1px) to `border-2` (2px) so the blue/teal focus and idle borders are more visible and defined around the rounded edges.
+
+**Modified:** `src/renderer/components/chat/ChatInput.tsx`
+
+## 2026-04-14 16:34 GST (Dubai)
+
+### ChatInput: Improve background color from flat grey to darker surface
+
+Replaced the hardcoded `#2c2e35` background with `#1a1b1e`, a darker and cooler surface tone that integrates better with the `#0D0D0D` dark theme background. Updated both the container background and the scroll shadow gradient to match.
+
+**Modified:** `src/renderer/components/chat/ChatInput.tsx`
+
+## 2026-04-14 16:32 GST (Dubai)
+
+### Chat: /close slash command archives threads instead of deleting
+
+Added `archiveTask` method to TaskStore that sets `isArchived=true`, marks status as completed, cancels the running agent, clears streaming state, deletes from backend, and persists history. Changed `/close` and `/exit` slash commands to call `archiveTask` instead of `removeTask` + `deleteTask`. Archived threads show an archive icon in the sidebar, a "Previous conversation — view only" zigzag banner, and a disabled input area.
+
+**Modified:** `src/renderer/stores/taskStore.ts`, `src/renderer/hooks/useSlashAction.ts`
+
 ## 2026-04-14 16:31 GST (Dubai)
 
 ### ACP: Fix undefined `question_format` compile error
