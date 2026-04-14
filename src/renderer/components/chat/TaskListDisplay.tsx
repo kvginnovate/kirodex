@@ -78,7 +78,7 @@ export function aggregateLatestTasks(allToolCalls: ToolCall[]): { tasks: TaskIte
     const tasks = extractTasks(tc.rawOutput)
     const desc = extractDescription(tc.rawOutput)
     if (desc) description = desc
-    if (tasks) {
+    if (tasks && tasks.length > 0) {
       for (const t of tasks) {
         taskMap.set(t.id, t)
       }
