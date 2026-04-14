@@ -1,5 +1,21 @@
 # Activity Log
 
+## 2026-04-14 22:53 GST (Dubai)
+
+### Chat: Fix message list layout overlap and shift
+
+Removed `contain: 'layout'` CSS from virtualizer rows in `MessageList.tsx` which was preventing proper re-measurement when row content changed height. Added `liveToolCalls` to the virtualizer `measure()` dependency array so rows re-measure when tool calls update (task lists, tool completions).
+
+**Modified:** `src/renderer/components/chat/MessageList.tsx`
+
+## 2026-04-14 22:44 GST (Dubai)
+
+### Chat: Add /usage slash command for token usage report
+
+Added a `/usage` slash command that opens a panel showing token context usage across all tasks. The panel displays total context used with a color-coded progress bar, active model name, task count, and a per-task breakdown with percentage and token counts. Wired into the existing slash command infrastructure (useSlashAction, useChatInput, SlashPanels).
+
+**Modified:** `src/renderer/hooks/useSlashAction.ts`, `src/renderer/hooks/useChatInput.ts`, `src/renderer/components/chat/SlashPanels.tsx`
+
 ## 2026-04-14 22:33 GST (Dubai)
 
 ### Chat: Improve answered questions UI; remove bubble, increase fonts

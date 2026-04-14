@@ -91,12 +91,11 @@ export const MessageList = memo(function MessageList({
     return () => el.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Force virtualizer to recalculate when rows change structurally.
-  // Without this, stale cached measurements from previous rows cause
-  // content to appear missing until the user scrolls.
+  // Force virtualizer to recalculate when rows change structurally or
+  // content changes height (tool call updates, task completions, streaming).
   useEffect(() => {
     virtualizer.measure()
-  }, [rowFingerprint, virtualizer])
+  }, [rowFingerprint, liveToolCalls, virtualizer])
 
   useEffect(() => {
     if (isNearBottomRef.current) {
@@ -130,7 +129,6 @@ export const MessageList = memo(function MessageList({
                 className="absolute left-0 top-0 w-full"
                 style={{
                   transform: `translateY(${virtualRow.start}px)`,
-                  contain: 'layout',
                   minHeight: ROW_MIN_HEIGHTS[row.kind],
                 }}
               >
