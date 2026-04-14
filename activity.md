@@ -1,5 +1,13 @@
 # Activity Log
 
+## 2026-04-14 16:35 GST (Dubai)
+
+### KiroConfigPanel + SlashPanels: Fix agent grouping and /agent visibility
+
+Custom .kiro agents (kirodex, rust-senior-engineer, react-expert) were grouped under "Other" in the sidebar because `getAgentStack()` only matched hardcoded framework prefixes. Renamed the fallback group from "other" to "custom" with a violet robot icon. Also added .kiro agents to the `/agent` slash panel, which previously only showed built-in agents (Default, Planner).
+
+**Modified:** `src/renderer/components/sidebar/KiroConfigPanel.tsx`, `src/renderer/components/chat/SlashPanels.tsx`
+
 ## 2026-04-14 16:37 GST (Dubai)
 
 ### ChatInput: Increase border width to 2px

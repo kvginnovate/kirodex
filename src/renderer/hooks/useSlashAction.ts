@@ -95,11 +95,9 @@ export const useSlashAction = (): SlashActionResult => {
       }
       case 'close':
       case 'exit': {
-        const { selectedTaskId, removeTask, pendingWorkspace, setPendingWorkspace } = useTaskStore.getState()
+        const { selectedTaskId, archiveTask, pendingWorkspace, setPendingWorkspace } = useTaskStore.getState()
         if (selectedTaskId) {
-          void ipc.cancelTask(selectedTaskId).catch(() => {})
-          removeTask(selectedTaskId)
-          void ipc.deleteTask(selectedTaskId)
+          archiveTask(selectedTaskId)
         } else if (pendingWorkspace) {
           setPendingWorkspace(null)
         }

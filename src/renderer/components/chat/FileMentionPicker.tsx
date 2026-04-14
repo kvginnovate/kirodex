@@ -1,11 +1,25 @@
 import { memo, useEffect, useRef, useState, useCallback } from 'react'
-import { IconRobot, IconTool } from '@tabler/icons-react'
+import { IconRobot, IconTool, IconCode, IconListCheck } from '@tabler/icons-react'
 import { cn } from '@/lib/utils'
 import { ipc } from '@/lib/ipc'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useKiroStore } from '@/stores/kiroStore'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ProjectFile } from '@/types'
+
+// ── Built-in agents for @ mention ────────────────────────────────────
+const BUILT_IN_MENTION_AGENTS = [
+  { name: 'Default', id: 'kiro_default', description: 'Code, edit, and execute', icon: IconCode, color: 'text-blue-400', bgCls: 'bg-blue-500/20' },
+  { name: 'Planner', id: 'kiro_planner', description: 'Plan before coding', icon: IconListCheck, color: 'text-teal-400', bgCls: 'bg-teal-500/20' },
+] as const
+
+/** Resolve the icon + color for an agent mention pill by path */
+const getAgentPillMeta = (agentPath: string): { icon: typeof IconRobot; color: string; bgCls: string } => {
+  const name = agentPath.replace(/^agent:/, '')
+  const builtin = BUILT_IN_MENTION_AGENTS.find((a) => a.id === name || a.name === name)
+  if (builtin) return { icon: builtin.icon, color: builtin.color, bgCls: builtin.bgCls }
+  return { icon: IconRobot, color: 'text-violet-400', bgCls: 'bg-violet-500/20' }
+}
 
 // ── File type icon by extension ──────────────────────────────────────
 const EXT_ICONS: Record<string, { label: string; cls: string }> = {

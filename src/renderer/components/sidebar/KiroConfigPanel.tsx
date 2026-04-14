@@ -25,30 +25,31 @@ function formatName(name: string): string {
   return name.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+const STACK_PREFIXES = [
+  'nextjs', 'laravel', 'magento', 'strapi', 'expo-react-native',
+  'express', 'nodejs', 'devops', 'python', 'swiftui', 'mumzworld',
+] as const
+
 function getAgentStack(name: string): string {
-  const prefixes = [
-    'nextjs', 'laravel', 'magento', 'strapi', 'expo-react-native',
-    'express', 'nodejs', 'devops', 'python', 'swiftui', 'mumzworld',
-  ]
   const lower = name.toLowerCase()
-  for (const p of prefixes) {
+  for (const p of STACK_PREFIXES) {
     if (lower.startsWith(p) || lower.includes(`-${p}-`) || lower.includes(`-${p}`)) return p
   }
-  return 'other'
+  return 'custom'
 }
 
 function getStackLabel(stack: string): string {
   const map: Record<string, string> = {
     nextjs: 'Next.js', laravel: 'Laravel', magento: 'Magento', strapi: 'Strapi',
     'expo-react-native': 'React Native', express: 'Express', nodejs: 'Node.js',
-    devops: 'DevOps', python: 'Python', swiftui: 'SwiftUI', mumzworld: 'Mumzworld', other: 'Other',
+    devops: 'DevOps', python: 'Python', swiftui: 'SwiftUI', mumzworld: 'Mumzworld', custom: 'Custom',
   }
   return map[stack] ?? formatName(stack)
 }
 
 function getAgentRole(name: string): string {
   const stack = getAgentStack(name)
-  const raw = stack !== 'other' ? name.slice(stack.length + 1) : name
+  const raw = stack !== 'custom' ? name.slice(stack.length + 1) : name
   return raw ? formatName(raw) : formatName(name)
 }
 
@@ -68,7 +69,7 @@ const STACK_META: Record<string, StackMeta> = {
   python:             { icon: IconBrandPython,     color: 'text-yellow-400' },
   swiftui:            { icon: IconBrandSwift,      color: 'text-orange-300' },
   mumzworld:          { icon: IconWorld,           color: 'text-pink-400' },
-  other:              { icon: IconTool,            color: 'text-muted-foreground' },
+  custom:             { icon: IconRobot,           color: 'text-violet-400' },
 }
 
 // Role-level icons for individual agents
@@ -126,7 +127,7 @@ const AgentStackGroup = memo(function AgentStackGroup({ stack, agents, onOpen }:
   stack: string; agents: KiroAgent[]; onOpen: (v: ViewerState) => void
 }) {
   const [open, setOpen] = useState(false)
-  const meta = STACK_META[stack] ?? STACK_META.other
+  const meta = STACK_META[stack] ?? STACK_META.custom
   const StackIcon = meta.icon
 
   return (
@@ -345,7 +346,7 @@ export const KiroConfigPanel = memo(function KiroConfigPanel({
       if (!map.has(stack)) map.set(stack, [])
       map.get(stack)!.push(agent)
     }
-    return Array.from(map.entries()).sort((a, b) => a[0] === 'other' ? 1 : b[0] === 'other' ? -1 : a[0].localeCompare(b[0]))
+    return Array.from(map.entries()).sort((a, b) => a[0] === 'custom' ? 1 : b[0] === 'custom' ? -1 : a[0].localeCompare(b[0]))
   }, [agents, lowerSearch])
 
   const filteredSkills = useMemo(() =>

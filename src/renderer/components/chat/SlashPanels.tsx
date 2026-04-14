@@ -1,8 +1,9 @@
 import { memo, useCallback } from 'react'
-import { IconCode, IconListCheck } from '@tabler/icons-react'
+import { IconCode, IconListCheck, IconRobot } from '@tabler/icons-react'
 import { cn } from '@/lib/utils'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useTaskStore } from '@/stores/taskStore'
+import { useKiroStore } from '@/stores/kiroStore'
 import { ipc } from '@/lib/ipc'
 import type { SlashPanel } from '@/hooks/useSlashAction'
 
@@ -75,6 +76,7 @@ const ModelPickerPanel = memo(function ModelPickerPanel({ onDismiss }: { onDismi
 const AgentListPanel = memo(function AgentListPanel({ onDismiss }: { onDismiss: () => void }) {
   const servers = useSettingsStore((s) => s.liveMcpServers)
   const currentModeId = useSettingsStore((s) => s.currentModeId)
+  const kiroAgents = useKiroStore((s) => s.config.agents)
 
   const handleSelectAgent = useCallback((agentId: string) => {
     useSettingsStore.setState({ currentModeId: agentId })
@@ -86,6 +88,9 @@ const AgentListPanel = memo(function AgentListPanel({ onDismiss }: { onDismiss: 
     }
     onDismiss()
   }, [onDismiss])
+
+  const formatName = (name: string): string =>
+    name.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
   return (
     <PanelShell>
@@ -116,6 +121,38 @@ const AgentListPanel = memo(function AgentListPanel({ onDismiss }: { onDismiss: 
           )
         })}
       </ul>
+
+      {/* .kiro agents */}
+      {kiroAgents.length > 0 && (
+        <>
+          <div className="mx-3 border-t border-border/40" />
+          <div className="px-3 pt-2 pb-1">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">.kiro Agents</span>
+          </div>
+          <ul className="max-h-[160px] overflow-y-auto pb-1">
+            {kiroAgents.map((agent) => {
+              const isActive = currentModeId === agent.name
+              return (
+                <li
+                  key={`${agent.source}-${agent.name}`}
+                  role="option"
+                  aria-selected={isActive}
+                  onMouseDown={(e) => { e.preventDefault(); handleSelectAgent(agent.name) }}
+                  className={cn(
+                    'flex cursor-pointer items-center gap-2.5 px-3 py-1.5 text-[12px] transition-colors',
+                    isActive ? 'text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                  )}
+                >
+                  <IconRobot className={cn('size-3.5 shrink-0', isActive ? 'text-violet-400' : 'text-muted-foreground/60')} />
+                  <span className={cn('flex-1 truncate', isActive && 'font-medium')}>{formatName(agent.name)}</span>
+                  <span className="text-[10px] text-muted-foreground/50 truncate max-w-[120px]">{agent.description.slice(0, 60)}</span>
+                  {isActive && <span className="shrink-0 text-[10px] text-primary/60">active</span>}
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
 
       {/* MCP servers */}
       {servers.length > 0 && (
