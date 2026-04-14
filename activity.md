@@ -1,5 +1,20 @@
 # Activity Log
 
+## 2026-04-15 01:40 GST (Dubai)
+
+### Settings: update indicator dot + restart prompt dialog
+
+Added a pulsing indicator dot on the Settings sidebar button that appears when an update is `available`, `downloading`, or `ready`. Created a `RestartPromptDialog` component (Radix Dialog) that auto-opens when the update status reaches `ready`, offering "Later" (dismisses) and "Restart now" (relaunches the app) actions. Wired a `triggerRestart` callback through `updateStore` and `useUpdateChecker`. Added 17 unit tests covering both the indicator dot visibility states and the dialog behavior.
+
+**Modified:**
+- `src/renderer/components/sidebar/SidebarFooter.tsx`
+- `src/renderer/components/sidebar/SidebarFooter.test.tsx` (new)
+- `src/renderer/components/sidebar/RestartPromptDialog.tsx` (new)
+- `src/renderer/components/sidebar/RestartPromptDialog.test.tsx` (new)
+- `src/renderer/stores/updateStore.ts`
+- `src/renderer/hooks/useUpdateChecker.ts`
+- `src/renderer/App.tsx`
+
 ## 2026-04-15 01:28 GST (Dubai)
 
 ### Settings: add About Kirodex dialog with update button
@@ -409,3 +424,29 @@ Applied contrast improvement rules across 17 files (some had no matching pattern
 - `bg-muted/10` → `bg-muted/30`
 - `bg-muted/20` → `bg-muted/40`
 - `bg-muted/30` → `bg-muted/50`
+
+## 2026-04-15 01:34 GST (Dubai)
+
+**Task:** Codebase exploration for settings button, update logic, sidebar, and settings store
+
+**Files read:**
+- `src/renderer/components/sidebar/SidebarFooter.tsx` - Settings button with update badge
+- `src/renderer/components/sidebar/TaskSidebar.tsx` - Main sidebar component
+- `src/renderer/stores/settingsStore.ts` - App settings Zustand store
+- `src/renderer/stores/updateStore.ts` - Update state management
+- `src/renderer/hooks/useUpdateChecker.ts` - Auto-update checker hook
+- `src/renderer/components/settings/SettingsPanel.tsx` - Full settings panel
+- `src/renderer/components/settings/AboutDialog.tsx` - About dialog with update UI
+- `src/renderer/components/ui/dialog.tsx` - Radix dialog wrapper
+- `src/renderer/components/ui/button.tsx` - CVA button component
+- `src/renderer/App.tsx` - Main app layout
+- `package.json` - Dependencies and scripts
+- `vitest.config.ts` - Test configuration
+- `src/renderer/types/index.ts` - Type definitions
+
+**Findings:**
+- Update system uses @tauri-apps/plugin-updater with 3 layers: updateStore (state), useUpdateChecker (hook), UpdateNotifier (toast UI)
+- Settings button in SidebarFooter shows "Update Now" badge when update available
+- SettingsPanel is a full-screen overlay with 5 sections (Account, General, Appearance, Keyboard, Advanced)
+- 40 test files using Vitest + jsdom + @testing-library/react
+- No standalone `isUpdateAvailable` boolean; derived from `status === 'available'`

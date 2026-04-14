@@ -4,9 +4,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useTaskStore } from '@/stores/taskStore'
 import { useDebugStore } from '@/stores/debugStore'
-import { useUpdateStore } from '@/stores/updateStore'
+import { useUpdateStore, type UpdateStatus } from '@/stores/updateStore'
 import { useResizeHandle } from '@/hooks/useResizeHandle'
 import { KiroConfigPanel } from './KiroConfigPanel'
+
+const hasUpdateIndicator = (status: UpdateStatus): boolean =>
+  status === 'available' || status === 'downloading' || status === 'ready'
 
 const KiroConfigFooter = memo(function KiroConfigFooter() {
   const [collapsed, setCollapsed] = useState(false)
@@ -40,8 +43,10 @@ const KiroConfigFooter = memo(function KiroConfigFooter() {
 
 export const SidebarFooter = memo(function SidebarFooter() {
   const setSettingsOpen = useTaskStore((s) => s.setSettingsOpen)
-  const isUpdateAvailable = useUpdateStore((s) => s.status === 'available')
+  const updateStatus = useUpdateStore((s) => s.status)
+  const isUpdateAvailable = updateStatus === 'available'
   const triggerDownload = useUpdateStore((s) => s.triggerDownload)
+  const isIndicatorVisible = hasUpdateIndicator(updateStatus)
 
   const handleUpdateClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -66,7 +71,16 @@ export const SidebarFooter = memo(function SidebarFooter() {
           <TooltipTrigger asChild>
             <button type="button" onClick={() => setSettingsOpen(true)}
               className="flex w-full h-8 cursor-pointer items-center gap-2 overflow-hidden rounded-lg px-2 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <IconSettings className="size-4" aria-hidden />
+              <span className="relative">
+                <IconSettings className="size-4" aria-hidden />
+                {isIndicatorVisible && (
+                  <span
+                    data-testid="update-indicator-dot"
+                    className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-primary animate-pulse"
+                    aria-label="Update available"
+                  />
+                )}
+              </span>
               <span className="text-[13px]">Settings</span>
               {isUpdateAvailable && (
                 <span

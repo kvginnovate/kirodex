@@ -113,6 +113,15 @@ export const useUpdateChecker = () => {
     }
   }, [store.status, downloadAndInstall])
 
+  // Expose restart to the store so the restart dialog can trigger it
+  useEffect(() => {
+    if (store.status === 'ready') {
+      useUpdateStore.getState().setTriggerRestart(() => { restart() })
+    } else {
+      useUpdateStore.getState().setTriggerRestart(null)
+    }
+  }, [store.status, restart])
+
   return {
     ...store,
     checkForUpdate,

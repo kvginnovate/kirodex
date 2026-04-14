@@ -23,6 +23,8 @@ interface UpdateState {
   dismissedVersion: string | null
   /** Callback set by useUpdateChecker so other components can trigger download */
   triggerDownload: (() => void) | null
+  /** Callback set by useUpdateChecker so other components can trigger restart */
+  triggerRestart: (() => void) | null
 
   setStatus: (status: UpdateStatus) => void
   setUpdateInfo: (info: UpdateInfo | null) => void
@@ -30,6 +32,7 @@ interface UpdateState {
   setError: (error: string | null) => void
   dismissVersion: (version: string) => void
   setTriggerDownload: (fn: (() => void) | null) => void
+  setTriggerRestart: (fn: (() => void) | null) => void
   reset: () => void
 }
 
@@ -42,12 +45,14 @@ export const useUpdateStore = create<UpdateState>((set) => ({
   error: null,
   dismissedVersion: (() => { try { return localStorage.getItem(DISMISSED_KEY) } catch { return null } })(),
   triggerDownload: null,
+  triggerRestart: null,
 
   setStatus: (status) => set({ status }),
   setUpdateInfo: (updateInfo) => set({ updateInfo }),
   setProgress: (progress) => set({ progress }),
   setError: (error) => set({ error, status: 'error' }),
   setTriggerDownload: (fn) => set({ triggerDownload: fn }),
+  setTriggerRestart: (fn) => set({ triggerRestart: fn }),
   dismissVersion: (version) => {
     try {
       localStorage.setItem(DISMISSED_KEY, version)

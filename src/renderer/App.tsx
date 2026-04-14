@@ -30,6 +30,7 @@ import { useDiffStore } from "@/stores/diffStore";
 import { useKiroStore, initKiroListeners } from "@/stores/kiroStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useUpdateChecker } from "@/hooks/useUpdateChecker";
+import { RestartPromptDialog } from "@/components/sidebar/RestartPromptDialog";
 import { getVersion } from "@tauri-apps/api/app";
 import {
   initAnalytics,
@@ -381,6 +382,7 @@ export function App() {
         theme="system"
       />
       <UpdateNotifier />
+      <RestartPromptDialog />
     </TooltipProvider>
   );
 }
