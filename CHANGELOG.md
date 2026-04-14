@@ -1,5 +1,36 @@
 # Changelog
 
+## [v0.8.13] - 2026-04-15
+
+### Features
+
+- wire up fork_session and add collapsible chat input
+- forward compaction status notification to frontend
+- add X close button to FileMentionPicker
+- add X close button to SlashPanels dropdown
+- add /usage slash command for token usage panel
+- redesign plan mode question cards for better approachability
+
+### Bug fixes
+
+- improve X close button UX in dropdown panels
+- resolve message list layout overlap from stale virtualizer measurements
+- prevent empty tasks array from skipping completed_task_ids
+
+### Styling
+
+- improve answered questions UI
+
+### Refactoring
+
+- replace virtualizer with plain DOM flow in MessageList
+
+### Documentation
+
+- update activity log
+- update activity log
+- update activity log
+
 ## [v0.8.12] - 2026-04-14
 
 ### Features
