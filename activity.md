@@ -1,5 +1,21 @@
 # Activity Log
 
+## 2026-04-16 02:56 GST (Dubai)
+
+### SystemMessageRow: restyle info and error variants to muted inline style
+
+Changed the remaining two system message variants to match the subtle fork/worktree style. The info variant lost its blue pill (`rounded-full border-blue bg-blue`) and the default error variant lost its destructive box (`rounded-lg border-destructive bg-destructive`). Both now use `text-[12px] text-muted-foreground/60` with `size-3.5` icons and no border or background.
+
+**Modified:** `src/renderer/components/chat/SystemMessageRow.tsx`
+
+## 2026-04-16 02:53 GST (Dubai)
+
+### SystemMessageRow: restyle worktree bubble to match fork system-message style
+
+Replaced the violet pill styling (rounded-full, border-violet, bg-violet) on the worktree system message with the same subtle muted inline style used by the fork variant: `text-muted-foreground/60`, smaller icon (`size-3.5`), no border or background. Slug and branch names use `text-muted-foreground/80` for slight emphasis.
+
+**Modified:** `src/renderer/components/chat/SystemMessageRow.tsx`
+
 ## 2026-04-16 02:45 GST (Dubai)
 
 ### AppHeader: add cross-platform support for Windows and Linux

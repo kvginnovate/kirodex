@@ -19,11 +19,11 @@ export const SystemMessageRow = memo(function SystemMessageRow({ row }: { row: S
     const { slug, branch } = parseWorktreeMessage(row.content)
     return (
       <div className="pb-4" data-timeline-row-kind="system-message">
-        <div className="mx-auto flex max-w-md items-center justify-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/8 px-4 py-2 text-[13px] text-violet-600 dark:text-violet-400">
-          <IconGitBranch className="size-4 shrink-0" aria-hidden />
+        <div className="mx-auto flex items-center justify-center gap-1.5 text-[12px] text-muted-foreground/60">
+          <IconGitBranch className="size-3.5 shrink-0" aria-hidden />
           <span>
-            Worktree <span className="font-medium">{slug}</span>
-            {branch && <> on <span className="font-medium">{branch}</span></>}
+            Worktree <span className="text-muted-foreground/80 font-medium">{slug}</span>
+            {branch && <> on <span className="text-muted-foreground/80 font-medium">{branch}</span></>}
           </span>
         </div>
       </div>
@@ -52,8 +52,8 @@ export const SystemMessageRow = memo(function SystemMessageRow({ row }: { row: S
   if (row.variant === 'info') {
     return (
       <div className="pb-4" data-timeline-row-kind="system-message">
-        <div className="mx-auto flex max-w-md items-center justify-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/8 px-4 py-2 text-[13px] text-blue-600 dark:text-blue-400">
-          <IconInfoCircle className="size-4 shrink-0" aria-hidden />
+        <div className="mx-auto flex items-center justify-center gap-1.5 text-[12px] text-muted-foreground/60">
+          <IconInfoCircle className="size-3.5 shrink-0" aria-hidden />
           <span className="break-words"><HighlightText text={row.content} /></span>
         </div>
       </div>
@@ -62,8 +62,8 @@ export const SystemMessageRow = memo(function SystemMessageRow({ row }: { row: S
 
   return (
     <div className="pb-4" data-timeline-row-kind="system-message">
-      <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-4 py-2.5 text-[15px] text-destructive/80">
-        <IconAlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <div className="mx-auto flex items-center justify-center gap-1.5 text-[12px] text-muted-foreground/60">
+        <IconAlertTriangle className="size-3.5 shrink-0" aria-hidden />
         <span className="break-words"><HighlightText text={row.content.replace(/^\u26a0\ufe0f\s*/, '')} /></span>
       </div>
     </div>
