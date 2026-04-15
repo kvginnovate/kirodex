@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+const { mockSetActiveWorkspace } = vi.hoisted(() => ({
+  mockSetActiveWorkspace: vi.fn(),
+}))
+
 vi.mock('@/lib/ipc', () => ({
   ipc: {
     cancelTask: vi.fn().mockResolvedValue(undefined),
@@ -24,7 +28,10 @@ vi.mock('./debugStore', () => ({
   useDebugStore: { getState: () => ({ addEntry: vi.fn() }) },
 }))
 vi.mock('./settingsStore', () => ({
-  useSettingsStore: { getState: () => ({ settings: {}, saveSettings: vi.fn().mockResolvedValue(undefined) }), setState: vi.fn() },
+  useSettingsStore: {
+    getState: () => ({ settings: {}, saveSettings: vi.fn().mockResolvedValue(undefined), setActiveWorkspace: mockSetActiveWorkspace }),
+    setState: vi.fn(),
+  },
 }))
 vi.mock('./diffStore', () => ({
   useDiffStore: { getState: () => ({ fetchDiff: vi.fn() }) },
@@ -48,7 +55,7 @@ const makeTask = (overrides?: Partial<AgentTask>): AgentTask => ({
 
 beforeEach(() => {
   useTaskStore.setState({
-    tasks: {}, projects: [], deletedTaskIds: new Set(), softDeleted: {}, selectedTaskId: null,
+    tasks: {}, projects: [], projectIds: {}, deletedTaskIds: new Set(), softDeleted: {}, selectedTaskId: null,
     streamingChunks: {}, thinkingChunks: {}, liveToolCalls: {},
     queuedMessages: {}, activityFeed: [], connected: false,
     terminalOpenTasks: new Set(), pendingWorkspace: null,
@@ -85,6 +92,36 @@ describe('upsertTask', () => {
     useTaskStore.getState().upsertTask(makeTask())
     useTaskStore.getState().upsertTask(makeTask({ status: 'running' }))
     expect(useTaskStore.getState().activityFeed.length).toBeGreaterThan(0)
+  })
+
+  it('preserves worktreePath when backend update lacks it', () => {
+    useTaskStore.getState().upsertTask(makeTask({
+      worktreePath: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+      workspace: '/project/.kiro/worktrees/feat',
+    }))
+    // Backend task_update arrives without worktree fields
+    useTaskStore.getState().upsertTask(makeTask({
+      status: 'running',
+      workspace: '/project/.kiro/worktrees/feat',
+    }))
+    const task = useTaskStore.getState().tasks['task-1']
+    expect(task.worktreePath).toBe('/project/.kiro/worktrees/feat')
+    expect(task.originalWorkspace).toBe('/project')
+  })
+
+  it('allows overwriting worktree fields when explicitly provided', () => {
+    useTaskStore.getState().upsertTask(makeTask({
+      worktreePath: '/project/.kiro/worktrees/old',
+      originalWorkspace: '/project',
+    }))
+    useTaskStore.getState().upsertTask(makeTask({
+      status: 'running',
+      worktreePath: '/project/.kiro/worktrees/new',
+      originalWorkspace: '/project',
+    }))
+    const task = useTaskStore.getState().tasks['task-1']
+    expect(task.worktreePath).toBe('/project/.kiro/worktrees/new')
   })
 })
 
@@ -197,21 +234,52 @@ describe('createDraftThread', () => {
 })
 
 describe('projects', () => {
-  it('addProject adds workspace', () => {
+  it('addProject adds workspace and generates UUID', () => {
     useTaskStore.getState().addProject('/ws')
     expect(useTaskStore.getState().projects).toContain('/ws')
+    const pid = useTaskStore.getState().projectIds['/ws']
+    expect(pid).toBeDefined()
+    expect(pid).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   it('addProject deduplicates', () => {
     useTaskStore.getState().addProject('/ws')
+    const pid = useTaskStore.getState().projectIds['/ws']
     useTaskStore.getState().addProject('/ws')
     expect(useTaskStore.getState().projects).toHaveLength(1)
+    // UUID should not change
+    expect(useTaskStore.getState().projectIds['/ws']).toBe(pid)
+  })
+
+  it('addProject rejects worktree paths', () => {
+    useTaskStore.getState().addProject('/project/.kiro/worktrees/feat')
+    expect(useTaskStore.getState().projects).toHaveLength(0)
   })
 
   it('reorderProject swaps positions', () => {
     useTaskStore.setState({ projects: ['/a', '/b', '/c'] })
     useTaskStore.getState().reorderProject(0, 2)
     expect(useTaskStore.getState().projects).toEqual(['/b', '/c', '/a'])
+  })
+})
+
+describe('getProjectId', () => {
+  it('returns existing UUID for known workspace', () => {
+    useTaskStore.getState().addProject('/ws')
+    const pid = useTaskStore.getState().projectIds['/ws']
+    expect(useTaskStore.getState().getProjectId('/ws')).toBe(pid)
+  })
+
+  it('generates and stores UUID for unknown workspace', () => {
+    const pid = useTaskStore.getState().getProjectId('/new')
+    expect(pid).toMatch(/^[0-9a-f-]{36}$/)
+    expect(useTaskStore.getState().projectIds['/new']).toBe(pid)
+  })
+
+  it('returns same UUID on repeated calls', () => {
+    const pid1 = useTaskStore.getState().getProjectId('/ws')
+    const pid2 = useTaskStore.getState().getProjectId('/ws')
+    expect(pid1).toBe(pid2)
   })
 })
 
@@ -247,11 +315,6 @@ describe('simple setters', () => {
     useTaskStore.getState().upsertTask(makeTask())
     useTaskStore.getState().renameTask('task-1', 'New Name')
     expect(useTaskStore.getState().tasks['task-1'].name).toBe('New Name')
-  })
-
-  it('renameProject', () => {
-    useTaskStore.getState().renameProject('/ws', 'My Project')
-    expect(useTaskStore.getState().projectNames['/ws']).toBe('My Project')
   })
 
   it('setPendingWorkspace', () => {
@@ -329,7 +392,11 @@ describe('forkTask', () => {
     vi.mocked(ipc.forkTask).mockResolvedValueOnce(forkedTask)
     useTaskStore.getState().upsertTask(makeTask())
     await useTaskStore.getState().forkTask('task-1')
-    expect(useTaskStore.getState().projects).toContain('/new-ws')
+    // forkTask resolves projectId via getProjectId which uses the workspace
+    // The workspace itself gets added to projects via the projectId resolution
+    const pid = useTaskStore.getState().tasks['fork-1'].projectId
+    expect(pid).toBeDefined()
+    expect(pid).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   it('adds system error message on fork failure', async () => {
@@ -572,6 +639,83 @@ describe('loadTasks', () => {
     expect(useTaskStore.getState().connected).toBe(true)
     expect(useTaskStore.getState().tasks['task-1']).toBeDefined()
   })
+
+  it('merges worktree metadata from archived onto live tasks', async () => {
+    const { ipc } = await import('@/lib/ipc')
+    const { loadThreads, loadProjects, toArchivedTasks } = await import('@/lib/history-store')
+    const liveTask = makeTask({ id: 'wt-1', workspace: '/project/.kiro/worktrees/feat', status: 'running' })
+    const archivedTask = makeTask({
+      id: 'wt-1',
+      workspace: '/project/.kiro/worktrees/feat',
+      status: 'completed',
+      isArchived: true,
+      worktreePath: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+      projectId: 'uuid-123',
+      parentTaskId: 'parent-1',
+    })
+    vi.mocked(ipc.listTasks).mockResolvedValueOnce([liveTask])
+    vi.mocked(loadThreads).mockResolvedValueOnce([])
+    vi.mocked(loadProjects).mockResolvedValueOnce([{ workspace: '/project', projectId: 'uuid-123', threadIds: ['wt-1'] }])
+    vi.mocked(toArchivedTasks).mockReturnValueOnce([archivedTask])
+    await useTaskStore.getState().loadTasks()
+    const task = useTaskStore.getState().tasks['wt-1']
+    expect(task.status).toBe('running')
+    expect(task.worktreePath).toBe('/project/.kiro/worktrees/feat')
+    expect(task.originalWorkspace).toBe('/project')
+    expect(task.projectId).toBe('uuid-123')
+    expect(task.parentTaskId).toBe('parent-1')
+  })
+
+  it('does not overwrite existing worktree metadata on live tasks', async () => {
+    const { ipc } = await import('@/lib/ipc')
+    const { loadThreads, loadProjects, toArchivedTasks } = await import('@/lib/history-store')
+    const liveTask = makeTask({
+      id: 'wt-2',
+      workspace: '/project/.kiro/worktrees/feat',
+      worktreePath: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+      projectId: 'live-uuid',
+    })
+    const archivedTask = makeTask({
+      id: 'wt-2',
+      workspace: '/project/.kiro/worktrees/feat',
+      isArchived: true,
+      worktreePath: '/project/.kiro/worktrees/old',
+      originalWorkspace: '/old-project',
+      projectId: 'archived-uuid',
+    })
+    vi.mocked(ipc.listTasks).mockResolvedValueOnce([liveTask])
+    vi.mocked(loadThreads).mockResolvedValueOnce([])
+    vi.mocked(loadProjects).mockResolvedValueOnce([{ workspace: '/project', projectId: 'live-uuid', threadIds: [] }])
+    vi.mocked(toArchivedTasks).mockReturnValueOnce([archivedTask])
+    await useTaskStore.getState().loadTasks()
+    const task = useTaskStore.getState().tasks['wt-2']
+    expect(task.worktreePath).toBe('/project/.kiro/worktrees/feat')
+    expect(task.originalWorkspace).toBe('/project')
+    expect(task.projectId).toBe('live-uuid')
+  })
+
+  it('excludes worktree paths from projects array after merge', async () => {
+    const { ipc } = await import('@/lib/ipc')
+    const { loadThreads, loadProjects, toArchivedTasks } = await import('@/lib/history-store')
+    const liveTask = makeTask({ id: 'wt-3', workspace: '/project/.kiro/worktrees/feat', status: 'running' })
+    const archivedTask = makeTask({
+      id: 'wt-3',
+      workspace: '/project/.kiro/worktrees/feat',
+      isArchived: true,
+      worktreePath: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+      projectId: 'uuid-456',
+    })
+    vi.mocked(ipc.listTasks).mockResolvedValueOnce([liveTask])
+    vi.mocked(loadThreads).mockResolvedValueOnce([])
+    vi.mocked(loadProjects).mockResolvedValueOnce([{ workspace: '/project', projectId: 'uuid-456', threadIds: ['wt-3'] }])
+    vi.mocked(toArchivedTasks).mockReturnValueOnce([archivedTask])
+    await useTaskStore.getState().loadTasks()
+    expect(useTaskStore.getState().projects).toContain('/project')
+    expect(useTaskStore.getState().projects).not.toContain('/project/.kiro/worktrees/feat')
+  })
 })
 
 describe('setConnected', () => {
@@ -590,7 +734,7 @@ describe('setConnected', () => {
 })
 
 describe('persistHistory', () => {
-  it('calls saveThreads with current tasks and projectNames', async () => {
+  it('calls saveThreads with current tasks, projectNames, and projectIds', async () => {
     const { saveThreads } = await import('@/lib/history-store')
     useTaskStore.getState().upsertTask(makeTask())
     useTaskStore.setState({ projectNames: { '/ws': 'My Project' } })
@@ -598,6 +742,7 @@ describe('persistHistory', () => {
     expect(saveThreads).toHaveBeenCalledWith(
       expect.objectContaining({ 'task-1': expect.any(Object) }),
       expect.objectContaining({ '/ws': 'My Project' }),
+      expect.any(Object),
     )
   })
 })
@@ -1015,5 +1160,232 @@ describe('resolveWorktreeCleanup', () => {
     useTaskStore.setState({ worktreeCleanupPending: null })
     useTaskStore.getState().resolveWorktreeCleanup(true)
     expect(useTaskStore.getState().worktreeCleanupPending).toBeNull()
+  })
+})
+
+describe('projectId', () => {
+  it('upsertTask preserves projectId when backend update lacks it', () => {
+    useTaskStore.getState().upsertTask(makeTask({
+      projectId: '/project',
+      worktreePath: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+      workspace: '/project/.kiro/worktrees/feat',
+    }))
+    useTaskStore.getState().upsertTask(makeTask({
+      status: 'running',
+      workspace: '/project/.kiro/worktrees/feat',
+    }))
+    expect(useTaskStore.getState().tasks['task-1'].projectId).toBe('/project')
+  })
+
+  it('upsertTask allows overwriting projectId when explicitly provided', () => {
+    useTaskStore.getState().upsertTask(makeTask({ projectId: '/old' }))
+    useTaskStore.getState().upsertTask(makeTask({ status: 'running', projectId: '/new' }))
+    expect(useTaskStore.getState().tasks['task-1'].projectId).toBe('/new')
+  })
+
+  it('createDraftThread sets projectId to UUID for workspace', () => {
+    useTaskStore.getState().addProject('/my-project')
+    const expectedPid = useTaskStore.getState().projectIds['/my-project']
+    const id = useTaskStore.getState().createDraftThread('/my-project')
+    expect(useTaskStore.getState().tasks[id].projectId).toBe(expectedPid)
+  })
+
+  it('forkTask inherits projectId from parent', async () => {
+    const { ipc } = await import('@/lib/ipc')
+    const forkedTask = makeTask({ id: 'fork-1', workspace: '/project/.kiro/worktrees/feat' })
+    vi.mocked(ipc.forkTask).mockResolvedValueOnce(forkedTask)
+    useTaskStore.getState().upsertTask(makeTask({
+      projectId: '/project',
+      worktreePath: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+      workspace: '/project/.kiro/worktrees/feat',
+    }))
+    await useTaskStore.getState().forkTask('task-1')
+    expect(useTaskStore.getState().tasks['fork-1'].projectId).toBe('/project')
+  })
+
+  it('forkTask falls back to UUID via getProjectId when parent has no projectId', async () => {
+    const { ipc } = await import('@/lib/ipc')
+    const forkedTask = makeTask({ id: 'fork-1', workspace: '/project/.kiro/worktrees/feat' })
+    vi.mocked(ipc.forkTask).mockResolvedValueOnce(forkedTask)
+    useTaskStore.getState().upsertTask(makeTask({
+      originalWorkspace: '/project',
+      workspace: '/project/.kiro/worktrees/feat',
+    }))
+    await useTaskStore.getState().forkTask('task-1')
+    const pid = useTaskStore.getState().tasks['fork-1'].projectId
+    expect(pid).toMatch(/^[0-9a-f-]{36}$/)
+    // Should be the same UUID as getProjectId('/project')
+    expect(pid).toBe(useTaskStore.getState().projectIds['/project'])
+  })
+
+  it('forkTask adds real workspace to projects list, not worktree path', async () => {
+    const { ipc } = await import('@/lib/ipc')
+    const forkedTask = makeTask({ id: 'fork-1', workspace: '/project/.kiro/worktrees/feat' })
+    vi.mocked(ipc.forkTask).mockResolvedValueOnce(forkedTask)
+    useTaskStore.getState().upsertTask(makeTask({
+      projectId: useTaskStore.getState().getProjectId('/project'),
+      workspace: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+    }))
+    await useTaskStore.getState().forkTask('task-1')
+    expect(useTaskStore.getState().projects).toContain('/project')
+    expect(useTaskStore.getState().projects).not.toContain('/project/.kiro/worktrees/feat')
+  })
+
+  it('removeProject matches worktree threads by originalWorkspace', () => {
+    useTaskStore.getState().addProject('/project')
+    useTaskStore.getState().upsertTask(makeTask({
+      id: 'regular',
+      workspace: '/project',
+      projectId: useTaskStore.getState().projectIds['/project'],
+    }))
+    useTaskStore.getState().upsertTask(makeTask({
+      id: 'worktree',
+      workspace: '/project/.kiro/worktrees/feat',
+      projectId: useTaskStore.getState().projectIds['/project'],
+      worktreePath: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+    }))
+    useTaskStore.getState().removeProject('/project')
+    expect(useTaskStore.getState().tasks['regular']).toBeUndefined()
+    expect(useTaskStore.getState().tasks['worktree']).toBeUndefined()
+  })
+
+  it('archiveThreads matches worktree threads by originalWorkspace', () => {
+    useTaskStore.getState().upsertTask(makeTask({
+      id: 'wt1',
+      workspace: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+    }))
+    useTaskStore.getState().upsertTask(makeTask({
+      id: 'other',
+      workspace: '/other',
+    }))
+    useTaskStore.getState().archiveThreads('/project')
+    expect(useTaskStore.getState().tasks['wt1']).toBeUndefined()
+    expect(useTaskStore.getState().tasks['other']).toBeDefined()
+  })
+
+  it('restoreTask uses originalWorkspace for projects list', () => {
+    useTaskStore.getState().upsertTask(makeTask({
+      workspace: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+    }))
+    useTaskStore.getState().softDeleteTask('task-1')
+    useTaskStore.setState({ projects: [] })
+    useTaskStore.getState().restoreTask('task-1')
+    expect(useTaskStore.getState().projects).toContain('/project')
+    expect(useTaskStore.getState().projects).not.toContain('/project/.kiro/worktrees/feat')
+  })
+
+  it('loadTasks derives projects from workspace paths, not UUIDs', async () => {
+    const { ipc } = await import('@/lib/ipc')
+    const { loadThreads, loadProjects, toArchivedTasks } = await import('@/lib/history-store')
+    vi.mocked(ipc.listTasks).mockResolvedValueOnce([
+      makeTask({ id: 't1', workspace: '/project' }),
+      makeTask({ id: 't2', workspace: '/project/.kiro/worktrees/feat', originalWorkspace: '/project' }),
+    ])
+    vi.mocked(loadThreads).mockResolvedValueOnce([])
+    vi.mocked(loadProjects).mockResolvedValueOnce([])
+    vi.mocked(toArchivedTasks).mockReturnValueOnce([])
+    await useTaskStore.getState().loadTasks()
+    expect(useTaskStore.getState().projects).toEqual(['/project'])
+  })
+})
+
+describe('workspace scoping', () => {
+  beforeEach(() => {
+    mockSetActiveWorkspace.mockClear()
+  })
+
+  it('setSelectedTask syncs activeWorkspace to project root', () => {
+    useTaskStore.getState().upsertTask(makeTask({ id: 't1', workspace: '/project' }))
+    useTaskStore.getState().setSelectedTask('t1')
+    expect(mockSetActiveWorkspace).toHaveBeenCalledWith('/project', '/project')
+  })
+
+  it('setSelectedTask resolves worktree thread to originalWorkspace', () => {
+    useTaskStore.getState().upsertTask(makeTask({
+      id: 't1',
+      workspace: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+      worktreePath: '/project/.kiro/worktrees/feat',
+    }))
+    useTaskStore.getState().setSelectedTask('t1')
+    expect(mockSetActiveWorkspace).toHaveBeenCalledWith('/project', '/project/.kiro/worktrees/feat')
+  })
+
+  it('setSelectedTask sets activeWorkspace to null when deselecting', () => {
+    useTaskStore.getState().upsertTask(makeTask({ id: 't1', workspace: '/project' }))
+    useTaskStore.getState().setSelectedTask('t1')
+    mockSetActiveWorkspace.mockClear()
+    useTaskStore.getState().setSelectedTask(null)
+    expect(mockSetActiveWorkspace).toHaveBeenCalledWith(null, null)
+  })
+
+  it('setPendingWorkspace syncs activeWorkspace immediately', () => {
+    useTaskStore.getState().setPendingWorkspace('/my-project')
+    expect(mockSetActiveWorkspace).toHaveBeenCalledWith('/my-project', '/my-project')
+  })
+
+  it('setPendingWorkspace(null) clears activeWorkspace', () => {
+    useTaskStore.getState().setPendingWorkspace(null)
+    expect(mockSetActiveWorkspace).toHaveBeenCalledWith(null, null)
+  })
+
+  it('addProject rejects worktree paths', () => {
+    useTaskStore.getState().addProject('/project/.kiro/worktrees/feat')
+    expect(useTaskStore.getState().projects).toHaveLength(0)
+    expect(useTaskStore.getState().projectIds).toEqual({})
+  })
+
+  it('addProject accepts regular project paths', () => {
+    useTaskStore.getState().addProject('/project')
+    expect(useTaskStore.getState().projects).toContain('/project')
+    expect(useTaskStore.getState().projectIds['/project']).toBeDefined()
+  })
+
+  it('loadTasks never puts worktree paths in projects array', async () => {
+    const { ipc } = await import('@/lib/ipc')
+    const { loadThreads, loadProjects, toArchivedTasks } = await import('@/lib/history-store')
+    vi.mocked(ipc.listTasks).mockResolvedValueOnce([
+      makeTask({ id: 't1', workspace: '/project' }),
+      makeTask({ id: 't2', workspace: '/project/.kiro/worktrees/feat', originalWorkspace: '/project' }),
+      makeTask({ id: 't3', workspace: '/project/.kiro/worktrees/fix', originalWorkspace: '/project' }),
+    ])
+    vi.mocked(loadThreads).mockResolvedValueOnce([])
+    vi.mocked(loadProjects).mockResolvedValueOnce([])
+    vi.mocked(toArchivedTasks).mockReturnValueOnce([])
+    await useTaskStore.getState().loadTasks()
+    expect(useTaskStore.getState().projects).toEqual(['/project'])
+    expect(useTaskStore.getState().projects.some((p) => p.includes('.kiro/worktrees'))).toBe(false)
+  })
+
+  it('forkTask of worktree thread adds project root to projects, not worktree path', async () => {
+    const { ipc } = await import('@/lib/ipc')
+    const forkedTask = makeTask({ id: 'fork-1', workspace: '/project/.kiro/worktrees/feat' })
+    vi.mocked(ipc.forkTask).mockResolvedValueOnce(forkedTask)
+    useTaskStore.getState().upsertTask(makeTask({
+      workspace: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+      worktreePath: '/project/.kiro/worktrees/feat',
+    }))
+    await useTaskStore.getState().forkTask('task-1')
+    expect(useTaskStore.getState().projects).toContain('/project')
+    expect(useTaskStore.getState().projects.some((p) => p.includes('.kiro/worktrees'))).toBe(false)
+  })
+
+  it('restoreTask of worktree thread adds project root to projects', () => {
+    useTaskStore.getState().upsertTask(makeTask({
+      workspace: '/project/.kiro/worktrees/feat',
+      originalWorkspace: '/project',
+    }))
+    useTaskStore.getState().softDeleteTask('task-1')
+    useTaskStore.setState({ projects: [] })
+    useTaskStore.getState().restoreTask('task-1')
+    expect(useTaskStore.getState().projects).toContain('/project')
+    expect(useTaskStore.getState().projects.some((p) => p.includes('.kiro/worktrees'))).toBe(false)
   })
 })

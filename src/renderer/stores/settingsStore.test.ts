@@ -28,6 +28,7 @@ const defaultState = {
   availableModes: [],
   currentModeId: null,
   activeWorkspace: null,
+  operationalWorkspace: null,
   availableCommands: [],
   liveMcpServers: [],
   kiroAuth: null,
@@ -111,7 +112,7 @@ describe('settingsStore', () => {
     })
 
     it('bails out when workspace and model unchanged', () => {
-      useSettingsStore.setState({ activeWorkspace: '/ws', currentModelId: 'claude-4' })
+      useSettingsStore.setState({ activeWorkspace: '/ws', currentModelId: 'claude-4', operationalWorkspace: '/ws' })
       useSettingsStore.setState({
         settings: {
           ...defaultState.settings,
@@ -119,8 +120,36 @@ describe('settingsStore', () => {
         },
       })
       // Should not throw or cause issues
-      useSettingsStore.getState().setActiveWorkspace('/ws')
+      useSettingsStore.getState().setActiveWorkspace('/ws', '/ws')
       expect(useSettingsStore.getState().activeWorkspace).toBe('/ws')
+    })
+
+    it('sets operationalWorkspace to workspace when not provided', () => {
+      useSettingsStore.getState().setActiveWorkspace('/project')
+      expect(useSettingsStore.getState().activeWorkspace).toBe('/project')
+      expect(useSettingsStore.getState().operationalWorkspace).toBe('/project')
+    })
+
+    it('sets operationalWorkspace to worktree path when provided', () => {
+      useSettingsStore.getState().setActiveWorkspace('/project', '/project/.kiro/worktrees/feat')
+      expect(useSettingsStore.getState().activeWorkspace).toBe('/project')
+      expect(useSettingsStore.getState().operationalWorkspace).toBe('/project/.kiro/worktrees/feat')
+    })
+
+    it('clears operationalWorkspace when workspace is null', () => {
+      useSettingsStore.getState().setActiveWorkspace('/project', '/project/.kiro/worktrees/feat')
+      useSettingsStore.getState().setActiveWorkspace(null)
+      expect(useSettingsStore.getState().activeWorkspace).toBeNull()
+      expect(useSettingsStore.getState().operationalWorkspace).toBeNull()
+    })
+
+    it('bails out when all three fields unchanged', () => {
+      useSettingsStore.setState({ activeWorkspace: '/project', operationalWorkspace: '/project/.kiro/worktrees/feat', currentModelId: null })
+      const stateBefore = useSettingsStore.getState()
+      useSettingsStore.getState().setActiveWorkspace('/project', '/project/.kiro/worktrees/feat')
+      // State reference should be the same (no unnecessary re-render)
+      expect(useSettingsStore.getState().activeWorkspace).toBe(stateBefore.activeWorkspace)
+      expect(useSettingsStore.getState().operationalWorkspace).toBe(stateBefore.operationalWorkspace)
     })
   })
 

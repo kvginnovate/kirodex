@@ -4,11 +4,19 @@ import { ipc } from '@/lib/ipc'
 
 type McpStatus = KiroMcpServer['status']
 
+const EMPTY_CONFIG: KiroConfig = { agents: [], skills: [], steeringRules: [], mcpServers: [] }
+
 interface KiroStore {
+  /** Per-project config cache keyed by workspace path */
+  configs: Record<string, KiroConfig>
+  /** Currently active project path */
+  activeProject: string | null
+  /** Derived config for the active project */
   config: KiroConfig
   loading: boolean
   loaded: boolean
   loadConfig: (projectPath?: string) => Promise<void>
+  invalidateConfig: (projectPath: string) => void
   setMcpError: (serverName: string, error: string) => void
   updateMcpServer: (serverName: string, patch: Partial<{ status: McpStatus; error: string; oauthUrl: string }>) => void
 }
@@ -22,24 +30,53 @@ const patchMcp = (config: KiroConfig, serverName: string, patch: object): KiroCo
   return { ...config, mcpServers: updated }
 }
 
+/** Apply an MCP patch to all cached configs (MCP servers are global) */
+const patchAllConfigs = (configs: Record<string, KiroConfig>, serverName: string, patch: object): Record<string, KiroConfig> => {
+  const next: Record<string, KiroConfig> = {}
+  let changed = false
+  for (const [key, cfg] of Object.entries(configs)) {
+    const patched = patchMcp(cfg, serverName, patch)
+    if (patched !== cfg) changed = true
+    next[key] = patched
+  }
+  return changed ? next : configs
+}
+
+const sanitizeConfig = (config: KiroConfig): KiroConfig => ({
+  agents: (config.agents ?? []).filter((a) => a.filePath),
+  skills: (config.skills ?? []).filter((s) => s.filePath),
+  steeringRules: (config.steeringRules ?? []).filter((r) => r.filePath),
+  mcpServers: config.mcpServers ?? [],
+})
+
 export const useKiroStore = create<KiroStore>((set, get) => {
   return {
-    config: { agents: [], skills: [], steeringRules: [], mcpServers: [] },
+    configs: {},
+    activeProject: null,
+    config: EMPTY_CONFIG,
     loading: false,
     loaded: false,
 
     loadConfig: async (projectPath?: string) => {
-      if (get().loading) return
-      set({ loading: true })
-      try {
-        const config = await ipc.getKiroConfig(projectPath)
-        const safe: KiroConfig = {
-          agents: (config.agents ?? []).filter((a) => a.filePath),
-          skills: (config.skills ?? []).filter((s) => s.filePath),
-          steeringRules: (config.steeringRules ?? []).filter((r) => r.filePath),
-          mcpServers: config.mcpServers ?? [],
+      const key = projectPath ?? '__global__'
+      // Return cached if available
+      const cached = get().configs[key]
+      if (cached) {
+        if (get().activeProject !== key || get().config !== cached) {
+          set({ activeProject: key, config: cached, loaded: true })
         }
-        set({ config: safe, loaded: true })
+        return
+      }
+      if (get().loading) return
+      set({ loading: true, activeProject: key })
+      try {
+        const raw = await ipc.getKiroConfig(projectPath)
+        const safe = sanitizeConfig(raw)
+        set((s) => ({
+          configs: { ...s.configs, [key]: safe },
+          config: safe,
+          loaded: true,
+        }))
       } catch {
         set({ loaded: true })
       } finally {
@@ -47,36 +84,56 @@ export const useKiroStore = create<KiroStore>((set, get) => {
       }
     },
 
-    setMcpError: (serverName, error) => set((s) => ({
-      config: patchMcp(s.config, serverName, { error, status: 'error' as const }),
-    })),
+    invalidateConfig: (projectPath) => {
+      const key = projectPath ?? '__global__'
+      set((s) => {
+        const { [key]: _, ...rest } = s.configs
+        return { configs: rest }
+      })
+    },
 
-    updateMcpServer: (serverName, patch) => set((s) => ({
-      config: patchMcp(s.config, serverName, patch),
-    })),
+    setMcpError: (serverName, error) => set((s) => {
+      const configs = patchAllConfigs(s.configs, serverName, { error, status: 'error' as const })
+      const config = patchMcp(s.config, serverName, { error, status: 'error' as const })
+      return { configs, config }
+    }),
+
+    updateMcpServer: (serverName, patch) => set((s) => {
+      const configs = patchAllConfigs(s.configs, serverName, patch)
+      const config = patchMcp(s.config, serverName, patch)
+      return { configs, config }
+    }),
   }
 })
 
 export function initKiroListeners(): () => void {
   const unsub1 = ipc.onMcpConnecting(() => {
-    useKiroStore.setState((s) => ({
-      config: {
-        ...s.config,
-        mcpServers: (s.config.mcpServers ?? []).map((m) =>
+    useKiroStore.setState((s) => {
+      const mcpPatch = (cfg: KiroConfig): KiroConfig => ({
+        ...cfg,
+        mcpServers: (cfg.mcpServers ?? []).map((m) =>
           m.enabled ? { ...m, status: 'connecting' as const, error: undefined, oauthUrl: undefined } : m
         ),
-      },
-    }))
+      })
+      const configs: Record<string, KiroConfig> = {}
+      for (const [key, cfg] of Object.entries(s.configs)) {
+        configs[key] = mcpPatch(cfg)
+      }
+      return { configs, config: mcpPatch(s.config) }
+    })
   })
 
   const unsub2 = ipc.onMcpUpdate(({ serverName, status, error, oauthUrl }) => {
-    useKiroStore.setState((s) => ({
-      config: patchMcp(s.config, serverName, {
+    useKiroStore.setState((s) => {
+      const patch = {
         status: status as McpStatus,
         ...(error !== undefined ? { error } : {}),
         ...(oauthUrl !== undefined ? { oauthUrl } : {}),
-      }),
-    }))
+      }
+      const configs = patchAllConfigs(s.configs, serverName, patch)
+      const config = patchMcp(s.config, serverName, patch)
+      return { configs, config }
+    })
   })
 
   return () => { unsub1(); unsub2() }
