@@ -1,88 +1,40 @@
 # Activity Log
 
-## 2026-04-15 12:15 GST (Dubai)
+## 2026-04-15 12:31 GST (Dubai)
 
-### CI: Add update-downloads workflow
+### Commits: Review and split unstaged changes into 4 logical commits
 
-Created `.github/workflows/update-downloads.yml` that runs daily at 06:30 UTC. Collects GitHub release download counts (per-asset, per-platform totals) and Homebrew tap clone stats from `thabti/homebrew-tap`, then writes `downloads.json` to the main branch. Requires a `TAP_TOKEN` repo secret with read access to the tap repo for Homebrew data.
+Reviewed all 60 unstaged files and created 4 separate commits:
 
-**Modified:** `.github/workflows/update-downloads.yml`
+1. `style(theme)`: CSS token updates in both tailwind.css files; darkened light-mode semantic colors, brightened dark-mode primary (#6366f1 → #818cf8)
+2. `feat(onboarding)`: Onboarding v2 with hasOnboarded → hasOnboardedV2 rename, analytics default changed to true (opt-out), and new privacy toggle in onboarding flow. 6 files across Rust backend, types, stores, and components.
+3. `refactor(settings)`: Removed RecentlyDeleted sidebar component + tests, added DeletedThreadsRestore inline in SettingsPanel under Advanced section. 3 files changed.
+4. `style(ui)`: Light mode contrast fixes and dark mode color variants across 51 component files. Removed /opacity suffixes from muted-foreground/border classes, added explicit dark: variants for colored elements.
 
-## 2026-04-15 12:06 (Dubai)
+TypeScript check passes with zero errors after all commits.
 
-### Fix light mode contrast issues in chat components (batch 3)
+**Modified:** src/tailwind.css, tailwind.css, settings.rs, App.tsx, Onboarding.tsx, SettingsPanel.tsx, taskStore.ts, types/index.ts, RecentlyDeleted.tsx (deleted), RecentlyDeleted.test.tsx (deleted), + 49 component files
 
-Fixed low-contrast text and border classes across 13 chat component files:
+## 2026-04-15 12:45 GST (Dubai)
 
-- **ChatPanel.tsx** - `text-muted-foreground/50` → `/80`, `text-blue-400/30` → `text-blue-600/30 dark:text-blue-400/30`, `text-blue-400/50` → `text-blue-600/50 dark:text-blue-400/50`, `bg-card/50` → `bg-card`
-- **MessageItem.tsx** - `text-muted-foreground/60` → `text-muted-foreground`, `text-teal-400` → `text-teal-600 dark:text-teal-400`
-- **UserMessageRow.tsx** - `text-muted-foreground/60` → `text-muted-foreground`, `text-blue-400` → `text-blue-600 dark:text-blue-400`, `text-yellow-400` → `text-yellow-600 dark:text-yellow-400`, `border-border/30` → `border-border/60`
-- **SystemMessageRow.tsx** - `text-blue-400` → `text-blue-600 dark:text-blue-400`
-- **PendingChat.tsx** - `text-muted-foreground/50` → `text-muted-foreground/80`, `text-amber-400` → `text-amber-600 dark:text-amber-400`
-- **AttachmentPreview.tsx** - `text-foreground/20` → `text-foreground/50`, `bg-black/20` → `bg-muted`, `bg-black/10` → `bg-muted/60`
-- **QueuedMessages.tsx** - All `text-muted-foreground/60` → `text-muted-foreground`
-- **ReadOutput.tsx** - `text-muted-foreground/60` → `text-muted-foreground`, `border-border/30` → `border-border/60`
-- **TaskCompletionCard.tsx** - `text-muted-foreground/60` → `text-muted-foreground`
-- **BranchSelector.tsx** - `text-muted-foreground/60` → `text-muted-foreground`
-- **ModelPicker.tsx** - `text-muted-foreground/70` → `text-muted-foreground`
-- **SearchBar.tsx** - `text-muted-foreground/60` → `text-muted-foreground`
-- **ContextUsageBar.tsx** - `text-muted-foreground/60` → `text-muted-foreground`
-- **HighlightText.tsx** - No changes needed (already uses proper light/dark variants)
+### UI: Dark mode WCAG AA contrast audit and fix
 
-## 2026-04-15 12:06 (Dubai)
+Full dark mode contrast audit across the entire application. Fixed ~175 WCAG AA violations across ~37 component files. Key change: bumped dark mode `--primary` from #6366f1 (3.8:1, fails AA) to #818cf8 (indigo-400, 5.0:1, passes AA). Removed low-opacity text-muted-foreground on all text content (labels, descriptions, timestamps, counts, placeholders); kept /70 only on decorative icons (chevrons, spinners) which pass the 3:1 UI component threshold. Fixed text-foreground/40→/60 and /50→/70. Removed all text-primary opacity modifiers. Fixed UI primitive placeholders in input.tsx and textarea.tsx.
 
-### Fix light mode contrast issues in chat components (batch 1)
+**Modified:** src/tailwind.css, tailwind.css, App.tsx, input.tsx, textarea.tsx, Onboarding.tsx, AppHeader.tsx, SlashPanels.tsx, QuestionCards.tsx, SearchBar.tsx, TaskCompletionCard.tsx, CollapsedAnswers.tsx, ToolCallDisplay.tsx, ToolCallEntry.tsx, TaskListDisplay.tsx, ExecutionPlan.tsx, ChatMarkdown.tsx, GitActionsGroup.tsx, ChatInput.tsx, FileMentionPicker.tsx, DragOverlay.tsx, BranchSelector.tsx, MessageItem.tsx, AttachmentPreview.tsx, EmptyThreadSplash.tsx, PendingChat.tsx, PermissionBanner.tsx, SettingsPanel.tsx, AboutDialog.tsx, ThemeSelector.tsx, KiroConfigPanel.tsx, ThreadItem.tsx, TaskSidebar.tsx, KiroFileViewer.tsx, DebugPanel.tsx, DiffPanel.tsx, DiffViewer.tsx
 
-Fixed low-contrast text in 6 chat component files:
+## 2026-04-15 12:24 (Dubai, GMT+4)
 
-1. **EmptyThreadSplash.tsx** - Fixed `text-foreground/50` → `/70`, `text-muted-foreground/25-30` → `text-muted-foreground`, `text-muted-foreground/40` → `/70`. Converted all hardcoded `-400` colors to `text-X-600 dark:text-X-400` pattern (teal, amber, purple, red, sky, blue, orange, emerald, cyan, indigo).
+### Dark mode contrast fixes - Batch 5
 
-2. **ChatInput.tsx** - Fixed `text-foreground/25` → `/50`, `text-foreground/30` → `/50`, `text-foreground/40` → `/60`, `text-muted-foreground/50` → `/80`, `text-muted-foreground/60` → `text-muted-foreground`, `placeholder:text-muted-foreground/60` → `placeholder:text-muted-foreground`.
+Fixed low-contrast text opacity issues across 9 component files:
 
-3. **ChatMarkdown.tsx** - Fixed `text-muted-foreground/50` → `/80` (2 occurrences: copy button and code block language label).
-
-4. **QuestionCards.tsx** - Fixed `text-muted-foreground/50` → `/80`, `text-muted-foreground/40` → `/70`, `placeholder:text-muted-foreground/40` → `placeholder:text-muted-foreground/70`.
-
-5. **SlashPanels.tsx** - Fixed `text-muted-foreground/60` → `text-muted-foreground`, `text-blue-400` → `text-blue-600 dark:text-blue-400`, `text-teal-400` → `text-teal-600 dark:text-teal-400`, `text-violet-400` → `text-violet-600 dark:text-violet-400`.
-
-6. **SlashCommandPicker.tsx** - Fixed `text-muted-foreground/60` → `text-muted-foreground`.
-
-## 2026-04-15 12:06 (Dubai) - Fix light mode contrast issues across 13 component files
-
-### Changes made
-Fixed low-contrast text and border opacity values across 13 files to improve light mode readability:
-
-**Opacity fixes (muted-foreground):**
-- `text-muted-foreground/50` → `text-muted-foreground/80`
-- `text-muted-foreground/40` → `text-muted-foreground/70`
-- `text-muted-foreground/60` → `text-muted-foreground`
-
-**Opacity fixes (border):**
-- `border-border/20` → `border-border/50`
-- `border-border/30` → `border-border/60`
-- `border-border/40` → `border-border/70`
-
-**Hardcoded dark-only colors → light+dark responsive:**
-- `text-X-400` → `text-X-600 dark:text-X-400` (red, blue, green, emerald, cyan, sky, yellow, violet, amber, teal, indigo, rose, pink, orange, gray)
-
-**Other fixes:**
-- `bg-card/50` → `bg-card`
-- `text-foreground/30` → `text-foreground/50`
-- `text-foreground/35` → `text-foreground/60`
-- `fill-muted-foreground/20` → `fill-muted-foreground/60`
-- `placeholder:text-muted-foreground/35` → `placeholder:text-muted-foreground/70`
-
-### Files modified
-1. settings/SettingsPanel.tsx (23 changes)
-2. settings/AboutDialog.tsx (3 changes)
-3. sidebar/KiroConfigPanel.tsx (~20 changes)
-4. sidebar/KiroFileViewer.tsx (1 change)
-5. AppHeader.tsx (3 changes)
-6. ErrorBoundary.tsx (1 change)
-7. GitActionsGroup.tsx (1 change)
-8. debug/DebugPanel.tsx (6 changes)
-9. diff/DiffPanel.tsx (3 changes)
-10. code/DebugLog.tsx (1 change)
-11. chat/FileMentionPicker.tsx (~20 changes)
-12. chat/ChangedFilesSummary.tsx (2 changes)
-13. dashboard/Dashboard.tsx (1 change)
+1. **AppHeader.tsx** - Fixed breadcrumb separator (`/50` → full), account type label (`text-foreground/50` → `/70`). Kept `/70` on decorative git/terminal icons.
+2. **debug/DebugPanel.tsx** - Fixed timestamps, task ID, entry type, count display, empty state text. Kept `/70` on chevron/copy/clear/close action icons. Fixed `text-primary/70` → `text-primary`.
+3. **diff/DiffPanel.tsx** - Fixed file count text, "no workspace" text, empty state text. Kept `/70` on toggle button icons.
+4. **code/DiffViewer.tsx** - Fixed collapse toggle (`/60` → full). Kept `/70` on toggle button icons and decorative file icons.
+5. **Onboarding.tsx** - Fixed "Other install methods" button, placeholder text, helper text, region label, LoginMethod text (`/80` → full). Fixed link text (`text-primary/60` → `text-primary`).
+6. **chat/PendingChat.tsx** - Fixed auth required text (`/80` → full).
+7. **chat/PermissionBanner.tsx** - Fixed reject_always button (`/60` → full).
+8. **chat/ReadOutput.tsx** - No changes needed (no remaining opacity issues).
+9. **App.tsx** - Fixed hint text (`/70` → full), LoginBanner subtitle (`dark:text-amber-200/50` → `dark:text-amber-400`).
