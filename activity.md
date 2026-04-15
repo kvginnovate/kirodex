@@ -1,5 +1,13 @@
 # Activity Log
 
+## 2026-04-16 02:45 GST (Dubai)
+
+### AppHeader: add cross-platform support for Windows and Linux
+
+Added platform detection to AppHeader so padding and margins adapt per OS. macOS keeps the 74px left padding for traffic lights. Windows and Linux get 2px left padding and 138px right padding to accommodate the WindowsControls (minimize/maximize/close). The WindowsControls component renders fixed top-right on non-macOS. Keyboard shortcut hints now show Ctrl+B instead of ⌘B on Windows/Linux. HeaderFallback updated to match.
+
+**Modified:** `src/renderer/components/AppHeader.tsx`
+
 ## 2026-04-16 02:41 GST (Dubai)
 
 ### AppHeader: fix dark mode background mismatch

@@ -29,9 +29,23 @@ import {
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OpenInEditorGroup } from "@/components/OpenInEditorGroup";
 import { GitActionsGroup } from "@/components/GitActionsGroup";
+import { WindowsControls } from "@/components/unified-title-bar/WindowsControls";
 import { ipc } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { TaskStatus } from "@/types";
+
+// ── Platform detection ───────────────────────────────────────
+type AppPlatform = "macos" | "windows" | "linux";
+
+const detectPlatform = (): AppPlatform => {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes("mac")) return "macos";
+  if (ua.includes("win")) return "windows";
+  return "linux";
+};
+
+const PLATFORM = detectPlatform();
+const IS_MAC = PLATFORM === "macos";
 
 // ── Window drag handler ──────────────────────────────────────
 // Belt-and-suspenders: data-tauri-drag-region (+ CSS app-region: drag)
@@ -184,7 +198,10 @@ const AppHeaderInner = memo(function AppHeaderInner({
       data-testid="app-header"
       data-tauri-drag-region
       onMouseDown={handleHeaderMouseDown}
-      className="flex h-[38px] shrink-0 items-center gap-3 border-b border-border bg-background p-0 pr-2 pt-1 pl-[74px] select-none [-webkit-user-select:none]"
+      className={cn(
+        "flex h-[38px] shrink-0 items-center gap-3 border-b border-border bg-background p-0 pt-1 select-none [-webkit-user-select:none]",
+        IS_MAC ? "pl-[74px] pr-2" : "pl-2 pr-[138px]",
+      )}
     >
       {/* Breadcrumb left */}
       <nav
@@ -225,7 +242,7 @@ const AppHeaderInner = memo(function AppHeaderInner({
           <TooltipContent side="bottom">
             Toggle sidebar{" "}
             <kbd className="ml-1 rounded bg-muted px-1 py-0.5 text-[10px]">
-              ⌘B
+              {IS_MAC ? "⌘" : "Ctrl+"}B
             </kbd>
           </TooltipContent>
         </Tooltip>
@@ -463,6 +480,13 @@ const AppHeaderInner = memo(function AppHeaderInner({
 
       {/* User menu — always visible */}
       <UserMenu />
+
+      {/* Window controls for Windows/Linux (no native title bar) */}
+      {!IS_MAC && (
+        <div className="fixed top-0 right-0 z-50">
+          <WindowsControls />
+        </div>
+      )}
     </header>
   );
 });
@@ -601,7 +625,10 @@ const UserMenu = memo(function UserMenu() {
 const HeaderFallback = () => (
   <header
     data-tauri-drag-region
-    className="drag-region flex h-[38px] shrink-0 items-center gap-3 border-b border-border bg-card p-0 pt-1 ml-[74px]"
+    className={cn(
+      "drag-region flex h-[38px] shrink-0 items-center gap-3 border-b border-border bg-card p-0 pt-1",
+      IS_MAC ? "ml-[74px]" : "ml-2 mr-[138px]",
+    )}
   />
 );
 
