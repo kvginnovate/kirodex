@@ -3,7 +3,7 @@ import {
   IconPlayerPause, IconPlayerPlay, IconCircleX, IconGitCompare, IconTerminal2,
   IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand,
   IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand,
-  IconUser, IconLogin, IconLogout, IconRefresh, IconUserCheck, IconGitFork,
+  IconUser, IconLogin, IconLogout, IconRefresh, IconUserCheck, IconGitFork, IconGitBranch,
 } from '@tabler/icons-react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useTaskStore } from '@/stores/taskStore'
@@ -50,24 +50,25 @@ const AppHeaderInner = memo(function AppHeaderInner({ sidePanelOpen, onToggleSid
   const taskStatus = useTaskStore((s) => selectedTaskId ? s.tasks[selectedTaskId]?.status : null) as TaskStatus | null
   const taskName = useTaskStore((s) => selectedTaskId ? s.tasks[selectedTaskId]?.name : null)
   const taskWorkspace = useTaskStore((s) => selectedTaskId ? s.tasks[selectedTaskId]?.workspace : null)
+  const taskOriginalWorkspace = useTaskStore((s) => selectedTaskId ? s.tasks[selectedTaskId]?.originalWorkspace : null)
   const taskUserPaused = useTaskStore((s) => selectedTaskId ? s.tasks[selectedTaskId]?.userPaused : undefined)
+  const isWorktree = useTaskStore((s) => selectedTaskId ? !!s.tasks[selectedTaskId]?.worktreePath : false)
   const pendingWorkspace = useTaskStore((s) => s.pendingWorkspace)
   const terminalOpen = useTaskStore((s) => selectedTaskId ? s.terminalOpenTasks.has(selectedTaskId) : false)
   const toggleTerminal = useTaskStore((s) => s.toggleTerminal)
   const renameTask = useTaskStore((s) => s.renameTask)
-  const renameProject = useTaskStore((s) => s.renameProject)
   const projectNames = useTaskStore((s) => s.projectNames)
 
   // Workspace-level diff stats (reactive to workspace changes)
+  // workspace = actual working directory (worktree path for worktree threads) — used for git/diff ops
   const workspace = taskWorkspace ?? pendingWorkspace
+  // projectRoot = always the real project folder — used for display and prefs lookup
+  const projectRoot = taskOriginalWorkspace ?? workspace
   const [diffStats, setDiffStats] = useState({ additions: 0, deletions: 0, fileCount: 0 })
 
   // Inline rename state for breadcrumbs
-  const [editingProject, setEditingProject] = useState(false)
   const [editingThread, setEditingThread] = useState(false)
-  const [projectEditValue, setProjectEditValue] = useState('')
   const [threadEditValue, setThreadEditValue] = useState('')
-  const projectInputRef = useRef<HTMLInputElement>(null)
   const threadInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -88,23 +89,10 @@ const AppHeaderInner = memo(function AppHeaderInner({ sidePanelOpen, onToggleSid
   const handleFork = useCallback(() => { if (selectedTaskId && !isForking) void forkTask(selectedTaskId) }, [selectedTaskId, forkTask, isForking])
 
   // Show workspace from task or from pendingWorkspace (before first message)
-  const projectName = (workspace ? (projectNames[workspace] ?? workspace.split('/').pop()) : null) ?? null
+  const projectName = (projectRoot ? (projectNames[projectRoot] ?? projectRoot.split('/').pop()) : null) ?? null
 
   // Focus input when entering edit mode
-  useEffect(() => { if (editingProject) projectInputRef.current?.select() }, [editingProject])
   useEffect(() => { if (editingThread) threadInputRef.current?.select() }, [editingThread])
-
-  const handleProjectDoubleClick = useCallback(() => {
-    if (!workspace) return
-    setProjectEditValue(projectName ?? '')
-    setEditingProject(true)
-  }, [workspace, projectName])
-
-  const commitProjectRename = useCallback(() => {
-    const trimmed = projectEditValue.trim()
-    if (workspace && trimmed && trimmed !== projectName) renameProject(workspace, trimmed)
-    setEditingProject(false)
-  }, [projectEditValue, projectName, workspace, renameProject])
 
   const handleThreadDoubleClick = useCallback(() => {
     if (!selectedTaskId || !taskName) return
@@ -150,30 +138,12 @@ const AppHeaderInner = memo(function AppHeaderInner({ sidePanelOpen, onToggleSid
         {projectName ? (
           <>
             <Sep />
-            {editingProject ? (
-              <input
-                ref={projectInputRef}
-                data-no-drag
-                value={projectEditValue}
-                onChange={(e) => setProjectEditValue(e.target.value)}
-                onBlur={commitProjectRename}
-                onKeyDown={(e) => { if (e.key === 'Enter') commitProjectRename(); if (e.key === 'Escape') setEditingProject(false) }}
-                className="min-w-0 max-w-[160px] truncate rounded-sm bg-transparent px-0.5 text-[13px] text-muted-foreground outline-none ring-1 ring-ring"
-              />
-            ) : (
-              <span
-                data-no-drag
-                role="button"
-                tabIndex={0}
-                aria-label={`Rename project ${projectName}`}
-                onDoubleClick={handleProjectDoubleClick}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'F2') handleProjectDoubleClick() }}
-                className="min-w-0 max-w-[160px] cursor-default truncate rounded-sm text-[13px] text-muted-foreground hover:text-foreground hover:bg-accent/50 px-0.5 transition-colors"
-                title={workspace ?? undefined}
-              >
-                {projectName}
-              </span>
-            )}
+            <span
+              className="min-w-0 max-w-[160px] truncate rounded-sm text-[13px] text-muted-foreground px-0.5"
+              title={workspace ?? undefined}
+            >
+              {projectName}
+            </span>
           </>
         ) : (
           <>
@@ -210,6 +180,7 @@ const AppHeaderInner = memo(function AppHeaderInner({ sidePanelOpen, onToggleSid
                 {taskName}
               </span>
             )}
+            {isWorktree && <IconGitBranch className="size-3.5 shrink-0 text-violet-500 dark:text-violet-400" aria-label="Worktree thread" />}
           </>
         ) : pendingWorkspace ? (
           <>
@@ -286,24 +257,26 @@ const AppHeaderInner = memo(function AppHeaderInner({ sidePanelOpen, onToggleSid
             )}
           </div>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                data-testid="toggle-terminal-button"
-                aria-label="Toggle terminal"
-                aria-pressed={terminalOpen}
-                onClick={() => selectedTaskId && toggleTerminal(selectedTaskId)}
-                className={cn(
-                  'inline-flex h-6 items-center rounded-md border border-input px-1.5 text-xs shadow-xs/5 transition-colors',
-                  terminalOpen ? 'bg-input/64 dark:bg-input text-foreground' : 'bg-popover hover:bg-accent/50 dark:bg-input/32 text-muted-foreground',
-                )}
-              >
-                <IconTerminal2 className="size-3" aria-hidden />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Terminal</TooltipContent>
-          </Tooltip>
+          {selectedTaskId && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  data-testid="toggle-terminal-button"
+                  aria-label="Toggle terminal"
+                  aria-pressed={terminalOpen}
+                  onClick={() => toggleTerminal(selectedTaskId)}
+                  className={cn(
+                    'inline-flex h-6 items-center rounded-md border border-input px-1.5 text-xs shadow-xs/5 transition-colors',
+                    terminalOpen ? 'bg-input/64 dark:bg-input text-foreground' : 'bg-popover hover:bg-accent/50 dark:bg-input/32 text-muted-foreground',
+                  )}
+                >
+                  <IconTerminal2 className="size-3" aria-hidden />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Terminal</TooltipContent>
+            </Tooltip>
+          )}
 
           {selectedTaskId && (
             <Tooltip>

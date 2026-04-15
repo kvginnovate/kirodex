@@ -52,33 +52,24 @@ export const parseReport = (text: string): KirodexReport | null => {
   return null
 }
 
-/** Strip the report block from message text so ChatMarkdown doesn't render it. */
+/** Whether a parsed report should render as a rich component (vs raw markdown). */
+export const shouldRenderReportCard = (report: KirodexReport): boolean =>
+  report.status === 'done' && !!report.filesChanged && report.filesChanged.length > 0
+
+/** Strip the report block from message text so ChatMarkdown doesn't render it.
+ *  Strips any report-like JSON regardless of whether it parses into a valid report. */
 export const stripReport = (text: string): string => {
-  let result = text
-  if (REPORT_REGEX.test(result)) return result.replace(REPORT_REGEX, '').trimEnd()
-  if (JSON_FENCE_REGEX.test(result)) {
-    // Only strip if the json fence contains a valid report
-    const match = JSON_FENCE_REGEX.exec(result)
-    if (match) {
-      try {
-        const parsed = JSON.parse(match[1])
-        if (isValidReport(parsed)) return result.replace(JSON_FENCE_REGEX, '').trimEnd()
-      } catch { /* fall through */ }
+  if (REPORT_REGEX.test(text)) return text.replace(REPORT_REGEX, '').trimEnd()
+  const jsonFenceMatch = JSON_FENCE_REGEX.exec(text)
+  if (jsonFenceMatch) {
+    const inner = jsonFenceMatch[1]
+    if (/"status"\s*:\s*"(?:done|partial|blocked)"/.test(inner) && /"summary"\s*:/.test(inner)) {
+      return text.replace(JSON_FENCE_REGEX, '').trimEnd()
     }
   }
-  if (BARE_JSON_REGEX.test(result)) {
-    const match = BARE_JSON_REGEX.exec(result)
-    if (match) {
-      try {
-        const parsed = JSON.parse(match[0])
-        if (isValidReport(parsed)) {
-          result = result.replace(match[0], '').trimEnd()
-          return result
-        }
-      } catch { /* fall through */ }
-    }
-  }
-  return result
+  const bareMatch = BARE_JSON_REGEX.exec(text)
+  if (bareMatch) return text.replace(bareMatch[0], '').trimEnd()
+  return text
 }
 
 const STATUS_LABEL: Record<string, string> = {

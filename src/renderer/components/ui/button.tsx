@@ -12,6 +12,8 @@ const buttonVariants = cva(
           'border-primary bg-primary text-primary-foreground shadow-xs shadow-primary/24 hover:bg-primary/90 active:shadow-none',
         destructive:
           'border-destructive bg-destructive text-white shadow-xs shadow-destructive/24 hover:bg-destructive/90 active:shadow-none',
+        pink:
+          'border-pink bg-pink text-pink-foreground shadow-xs shadow-pink/24 hover:bg-pink/90 active:shadow-none',
         'destructive-outline':
           'border-input bg-popover text-destructive shadow-xs/5 hover:border-destructive/32 hover:bg-destructive/4',
         outline:

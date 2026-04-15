@@ -58,7 +58,7 @@ export const CollapsibleContent = memo(function CollapsibleContent({ children }:
           onKeyDown={handleKeyDown}
           aria-expanded={isExpanded}
           aria-label={isExpanded ? 'Show less' : 'Show more'}
-          className="mt-1 flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+          className="mt-1 flex w-full items-center justify-center gap-1 rounded-md border border-border/50 bg-accent/30 py-1.5 text-[13px] font-semibold text-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground"
         >
           {isExpanded ? (
             <>

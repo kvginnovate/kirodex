@@ -3,15 +3,16 @@ import ChatMarkdown from './ChatMarkdown'
 import { CollapsibleContent } from './CollapsibleContent'
 import { ThinkingDisplay } from './ThinkingDisplay'
 import { isPlanHandoff, PlanHandoffCard } from './PlanHandoffCard'
-import { TaskCompletionCard, parseReport, stripReport } from './TaskCompletionCard'
+import { TaskCompletionCard, parseReport, stripReport, shouldRenderReportCard } from './TaskCompletionCard'
 import type { AssistantTextRow as AssistantTextRowData } from '@/lib/timeline'
 
 export const AssistantTextRow = memo(function AssistantTextRow({ row }: { row: AssistantTextRowData }) {
   const showHandoff = !row.isStreaming && isPlanHandoff(row.content)
-  const hasReport = useMemo(() => (!row.isStreaming ? parseReport(row.content) : null), [row.isStreaming, row.content])
-  const displayContent = useMemo(() => (hasReport ? stripReport(row.content) : row.content), [hasReport, row.content])
+  const report = useMemo(() => (!row.isStreaming ? parseReport(row.content) : null), [row.isStreaming, row.content])
+  const displayContent = useMemo(() => (!row.isStreaming ? stripReport(row.content) : row.content), [row.isStreaming, row.content])
+  const isRichReport = report && shouldRenderReportCard(report)
   // Only render the card here when there's no changed-files row to host it
-  const showReportCard = hasReport && !row.hasChangedFiles
+  const showReportCard = isRichReport && !row.hasChangedFiles
 
   return (
     <div data-testid="assistant-text-row" className={row.squashed ? 'pb-1.5' : 'pb-4'} data-timeline-row-kind="assistant-text">
@@ -27,7 +28,7 @@ export const AssistantTextRow = memo(function AssistantTextRow({ row }: { row: A
           </CollapsibleContent>
         )
       ) : null}
-      {showReportCard && <TaskCompletionCard report={hasReport} />}
+      {showReportCard && <TaskCompletionCard report={report} />}
       {showHandoff && <PlanHandoffCard />}
     </div>
   )

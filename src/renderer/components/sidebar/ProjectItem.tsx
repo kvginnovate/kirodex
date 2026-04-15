@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useEffect, useCallback } from 'react'
-import { IconChevronRight, IconChevronDown, IconEdit, IconTrash, IconPencil, IconArchive, IconMessagePlus, IconFolderOpen } from '@tabler/icons-react'
+import { IconChevronRight, IconChevronDown, IconEdit, IconTrash, IconArchive, IconMessagePlus, IconFolderOpen } from '@tabler/icons-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { ipc } from '@/lib/ipc'
@@ -19,7 +19,6 @@ interface ProjectItemProps {
   onForkTask: (id: string) => void
   onRemoveProject: () => void
   onArchiveThreads: () => void
-  onRenameProject: (name: string) => void
   onDragStart: () => void
   onDragOver: (e: React.DragEvent) => void
   onDrop: () => void
@@ -29,16 +28,13 @@ interface ProjectItemProps {
 export const ProjectItem = memo(function ProjectItem({
   name, cwd, tasks, selectedTaskId, isDragOver,
   onSelectTask, onNewThread, onDeleteTask, onRenameTask, onForkTask,
-  onRemoveProject, onArchiveThreads, onRenameProject,
+  onRemoveProject, onArchiveThreads,
   onDragStart, onDragOver, onDrop, onDragEnd,
 }: ProjectItemProps) {
   const [expanded, setExpanded] = useState(true)
   const [hovered, setHovered] = useState(false)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
-  const [editing, setEditing] = useState(false)
-  const [editValue, setEditValue] = useState(name)
   const ctxRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!ctxMenu) return
@@ -48,16 +44,6 @@ export const ProjectItem = memo(function ProjectItem({
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [ctxMenu])
-
-  useEffect(() => {
-    if (editing) inputRef.current?.select()
-  }, [editing])
-
-  const commitRename = useCallback(() => {
-    const trimmed = editValue.trim()
-    if (trimmed && trimmed !== name) onRenameProject(trimmed)
-    setEditing(false)
-  }, [editValue, name, onRenameProject])
 
   return (
     <li
@@ -90,19 +76,7 @@ export const ProjectItem = memo(function ProjectItem({
             ? <IconChevronDown className="size-3.5 shrink-0 text-muted-foreground/70" aria-hidden />
             : <IconChevronRight className="size-3.5 shrink-0 text-muted-foreground/70" aria-hidden />
           }
-          {editing ? (
-            <input
-              ref={inputRef}
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setEditing(false) }}
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 min-w-0 truncate bg-transparent text-[13px] font-normal text-foreground outline-none"
-            />
-          ) : (
-            <span className="flex-1 truncate text-[13px] font-normal text-foreground/85">{name}</span>
-          )}
+          <span className="flex-1 truncate text-[13px] font-normal text-foreground/85">{name}</span>
         </button>
 
         {/* Floating action buttons with gradient fade */}
@@ -153,10 +127,6 @@ export const ProjectItem = memo(function ProjectItem({
           <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-foreground transition-colors hover:bg-accent"
             onClick={() => { ipc.openUrl(cwd); setCtxMenu(null) }}>
             <IconFolderOpen className="size-3.5" /> Open in Finder
-          </button>
-          <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-foreground transition-colors hover:bg-accent"
-            onClick={() => { setEditValue(name); setEditing(true); setCtxMenu(null) }}>
-            <IconPencil className="size-3.5" /> Edit Name
           </button>
           <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-foreground transition-colors hover:bg-accent"
             onClick={() => { onArchiveThreads(); setCtxMenu(null) }}>

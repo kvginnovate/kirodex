@@ -354,21 +354,7 @@ export const ChatInput = memo(function ChatInput({ disabled, disabledReason, con
           <div className="relative z-10 flex items-center justify-between gap-2 px-3 pb-3 sm:px-4">
             {/* Left: attach + AI controls (mode + model) */}
             <div className="flex items-center gap-1.5">
-              {onToggleCollapse && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={onToggleCollapse}
-                      aria-label="Collapse chat input"
-                      className="flex size-8 items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-muted-foreground/70"
-                    >
-                      <IconChevronDown className="size-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-[11px]">Collapse input</TooltipContent>
-                </Tooltip>
-              )}
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button

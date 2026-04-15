@@ -70,7 +70,8 @@ async function sendMessageDirect(msg: string): Promise<void> {
 
   if (isDraft) {
     const { settings, currentModeId } = useSettingsStore.getState()
-    const projectPrefs = task.workspace ? settings.projectPrefs?.[task.workspace] : undefined
+    const projectRoot = task.originalWorkspace ?? task.workspace
+    const projectPrefs = projectRoot ? settings.projectPrefs?.[projectRoot] : undefined
     const autoApprove = projectPrefs?.autoApprove !== undefined ? projectPrefs.autoApprove : settings.autoApprove
     const modeId = currentModeId && currentModeId !== 'kiro_default' ? currentModeId : undefined
     const created = await ipc.createTask({ name: task.name, workspace: task.workspace, prompt: msg, autoApprove, modeId })
@@ -119,6 +120,7 @@ export const ChatPanel = memo(function ChatPanel() {
   const isWorktree = useTaskStore((s) => selectedTaskId ? !!s.tasks[selectedTaskId]?.worktreePath : false)
   const messageCount = useTaskStore((s) => selectedTaskId ? s.tasks[selectedTaskId]?.messages?.length ?? 0 : 0)
   const terminalOpen = useTaskStore((s) => selectedTaskId ? s.terminalOpenTasks.has(selectedTaskId) : false)
+  const toggleTerminal = useTaskStore((s) => s.toggleTerminal)
   const queuedMessages = useTaskStore((s) => selectedTaskId ? s.queuedMessages[selectedTaskId] ?? EMPTY_QUEUE : EMPTY_QUEUE)
 
   // Search state — timeline rows are pushed up from MessageList via callback
@@ -308,7 +310,7 @@ export const ChatPanel = memo(function ChatPanel() {
         )}
       </div>
       {terminalOpen && taskWorkspace && selectedTaskId && (
-        <TerminalDrawer key={selectedTaskId} cwd={taskWorkspace} />
+        <TerminalDrawer key={selectedTaskId} cwd={taskWorkspace} onClose={() => toggleTerminal(selectedTaskId)} />
       )}
     </div>
   )

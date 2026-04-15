@@ -4,6 +4,7 @@ import { ipc } from '@/lib/ipc'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { slugify, isValidWorktreeSlug } from '@/lib/utils'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ChatInput } from './ChatInput'
 import { EmptyThreadSplash } from './EmptyThreadSplash'
 
@@ -13,15 +14,14 @@ interface PendingChatProps {
 
 export function PendingChat({ workspace }: PendingChatProps) {
   const upsertTask = useTaskStore((s) => s.upsertTask)
-  const setSelectedTask = useTaskStore((s) => s.setSelectedTask)
-  const setPendingWorkspace = useTaskStore((s) => s.setPendingWorkspace)
+  const getProjectId = useTaskStore((s) => s.getProjectId)
   const draft = useTaskStore((s) => s.drafts[workspace])
   const setDraft = useTaskStore((s) => s.setDraft)
   const removeDraft = useTaskStore((s) => s.removeDraft)
 
   const settings = useSettingsStore((s) => s.settings)
   const projectPrefs = settings.projectPrefs?.[workspace]
-  const [useWorktree, setUseWorktree] = useState(projectPrefs?.worktreeEnabled ?? false)
+  const [useWorktree, setUseWorktree] = useState(false)
   const [worktreeSlug, setWorktreeSlug] = useState('')
   const [isSlugEdited, setIsSlugEdited] = useState(false)
   const [isEditingSlug, setIsEditingSlug] = useState(false)
@@ -31,7 +31,7 @@ export function PendingChat({ workspace }: PendingChatProps) {
     setDraft(workspace, val)
     // Auto-generate slug from message text if user hasn't manually edited it
     if (!isSlugEdited) {
-      setWorktreeSlug(slugify(val.slice(0, 60)))
+      setWorktreeSlug(slugify(val.slice(0, 40)))
     }
   }, [workspace, setDraft, isSlugEdited])
 
@@ -40,12 +40,11 @@ export function PendingChat({ workspace }: PendingChatProps) {
     setIsSlugEdited(true)
   }, [])
 
-  const handleWorktreeToggle = useCallback(() => {
-    const next = !useWorktree
+  const handleWorktreeToggle = useCallback((checked: boolean | 'indeterminate') => {
+    const next = checked === true
     setUseWorktree(next)
-    // Persist preference
     useSettingsStore.getState().setProjectPref(workspace, { worktreeEnabled: next })
-  }, [useWorktree, workspace])
+  }, [workspace])
 
   const handleEditSlug = useCallback(() => {
     setIsEditingSlug(true)
@@ -69,41 +68,58 @@ export function PendingChat({ workspace }: PendingChatProps) {
 
     if (useWorktree && worktreeSlug && isValidWorktreeSlug(worktreeSlug)) {
       // Create worktree first, then create task in it
-      const symlinkDirs = prefs?.symlinkDirectories ?? ['node_modules']
-      const wtResult = await ipc.gitWorktreeCreate(workspace, worktreeSlug)
       try {
-        await ipc.gitWorktreeSetup(workspace, wtResult.worktreePath, symlinkDirs)
-      } catch {
-        // Cleanup orphaned worktree if setup fails
-        void ipc.gitWorktreeRemove(workspace, wtResult.worktreePath).catch(() => {})
-        throw new Error('Worktree setup failed')
+        const symlinkDirs = prefs?.symlinkDirectories ?? ['node_modules']
+        const wtResult = await ipc.gitWorktreeCreate(workspace, worktreeSlug)
+        try {
+          await ipc.gitWorktreeSetup(workspace, wtResult.worktreePath, symlinkDirs)
+        } catch {
+          void ipc.gitWorktreeRemove(workspace, wtResult.worktreePath).catch(() => {})
+          throw new Error('Worktree setup failed')
+        }
+        const created = await ipc.createTask({ name, workspace: wtResult.worktreePath, prompt: msg, autoApprove, modeId })
+        upsertTask({
+          ...created,
+          projectId: getProjectId(workspace),
+          worktreePath: wtResult.worktreePath,
+          originalWorkspace: workspace,
+          messages: [
+            ...created.messages,
+            { role: 'system', content: `Working in worktree \`${wtResult.worktreePath}\` on branch \`${wtResult.branch}\``, timestamp: new Date().toISOString() },
+          ],
+        })
+        if (currentModeId && currentModeId !== 'kiro_default') {
+          useTaskStore.getState().setTaskMode(created.id, currentModeId)
+        }
+        useTaskStore.setState({ pendingWorkspace: null, selectedTaskId: created.id })
+        return
+      } catch (wtErr) {
+        // Worktree failed — fall back to original workspace with inline error
+        const errMsg = wtErr instanceof Error ? wtErr.message : String(wtErr)
+        const created = await ipc.createTask({ name, workspace, prompt: msg, autoApprove, modeId })
+        upsertTask({
+          ...created,
+          projectId: getProjectId(workspace),
+          messages: [
+            { role: 'system', content: `\u26a0\ufe0f Worktree creation failed: ${errMsg}. Running in the original workspace.`, timestamp: new Date().toISOString() },
+            ...created.messages,
+          ],
+        })
+        if (currentModeId && currentModeId !== 'kiro_default') {
+          useTaskStore.getState().setTaskMode(created.id, currentModeId)
+        }
+        useTaskStore.setState({ pendingWorkspace: null, selectedTaskId: created.id })
+        return
       }
-      const created = await ipc.createTask({ name, workspace: wtResult.worktreePath, prompt: msg, autoApprove, modeId })
-      upsertTask({
-        ...created,
-        worktreePath: wtResult.worktreePath,
-        originalWorkspace: workspace,
-        messages: [
-          ...created.messages,
-          { role: 'system', content: `Working in worktree \`${wtResult.worktreePath}\` on branch \`${wtResult.branch}\``, timestamp: new Date().toISOString() },
-        ],
-      })
-      if (currentModeId && currentModeId !== 'kiro_default') {
-        useTaskStore.getState().setTaskMode(created.id, currentModeId)
-      }
-      setPendingWorkspace(null)
-      setSelectedTask(created.id)
-      return
     }
 
     const created = await ipc.createTask({ name, workspace, prompt: msg, autoApprove, modeId })
-    upsertTask(created)
+    upsertTask({ ...created, projectId: getProjectId(workspace) })
     if (currentModeId && currentModeId !== 'kiro_default') {
       useTaskStore.getState().setTaskMode(created.id, currentModeId)
     }
-    setPendingWorkspace(null)
-    setSelectedTask(created.id)
-  }, [workspace, upsertTask, setSelectedTask, setPendingWorkspace, removeDraft, useWorktree, worktreeSlug])
+    useTaskStore.setState({ pendingWorkspace: null, selectedTaskId: created.id })
+  }, [workspace, upsertTask, removeDraft, useWorktree, worktreeSlug, getProjectId])
 
   const kiroAuth = useSettingsStore((s) => s.kiroAuth)
   const kiroAuthChecked = useSettingsStore((s) => s.kiroAuthChecked)
@@ -139,54 +155,58 @@ export function PendingChat({ workspace }: PendingChatProps) {
       </div>
       {/* Worktree toggle */}
       {!isLoggedOut && (
-        <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-1 px-4 pb-2">
-          <div className="flex items-center justify-center gap-3">
-            <label className="flex cursor-pointer items-center gap-2 text-[12px] text-muted-foreground select-none" htmlFor="worktree-toggle">
-              <input
+        <div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 pb-2">
+          <div className="flex w-full max-w-md flex-col rounded-xl border border-border/40 bg-card/30 px-3 py-2.5">
+            {/* Toggle row */}
+            <label
+              htmlFor="worktree-toggle"
+              className="flex cursor-pointer items-center gap-2.5 select-none"
+            >
+              <Checkbox
                 id="worktree-toggle"
-                type="checkbox"
                 checked={useWorktree}
-                onChange={handleWorktreeToggle}
-                className="size-3.5 rounded border-border accent-primary"
+                onCheckedChange={handleWorktreeToggle}
                 aria-label="Use worktree for this thread"
               />
-              <IconGitBranch className="size-3 text-violet-500 dark:text-violet-400" aria-hidden />
-              <span>Use worktree</span>
+              <IconGitBranch className="size-3.5 text-violet-500 dark:text-violet-400" aria-hidden />
+              <span className="text-xs font-medium text-foreground/70">Use worktree</span>
+              <span className="text-[11px] text-muted-foreground">Isolate this thread in its own directory</span>
             </label>
+            {/* Slug row */}
+            {useWorktree && (
+              <div className="mt-2 flex items-center gap-1.5 border-t border-border/30 pt-2 pl-[26px]">
+                <span className="shrink-0 rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground/70">.kiro/worktrees/</span>
+                {isEditingSlug ? (
+                  <input
+                    ref={slugInputRef}
+                    type="text"
+                    value={worktreeSlug}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    onBlur={() => setIsEditingSlug(false)}
+                    onKeyDown={handleSlugKeyDown}
+                    maxLength={30}
+                    placeholder="slug"
+                    className={`min-w-0 flex-1 rounded border bg-background/60 px-1.5 py-0.5 font-mono text-[11px] text-foreground outline-none placeholder:text-muted-foreground/40 ${isSlugValid ? 'border-border/40 focus:border-violet-400/60' : 'border-red-400/60'}`}
+                    aria-label="Worktree slug"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleEditSlug}
+                    className="group inline-flex min-w-0 items-center gap-1 rounded border border-transparent px-1.5 py-0.5 font-mono text-[11px] text-foreground/60 transition-colors hover:border-border/40 hover:bg-muted/40 hover:text-foreground"
+                    aria-label="Edit worktree slug"
+                    tabIndex={0}
+                  >
+                    <span className="truncate">{worktreeSlug || 'slug'}</span>
+                    <IconPencil className="size-2.5 shrink-0 text-muted-foreground/30 transition-colors group-hover:text-foreground/50" aria-hidden />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-          {useWorktree && (
-            <div className="flex items-center justify-center gap-1 text-center text-[11px] text-muted-foreground/60">
-              <span>Isolates this thread in</span>
-              <span className="font-mono text-muted-foreground/80">.kiro/worktrees/</span>
-              {isEditingSlug ? (
-                <input
-                  ref={slugInputRef}
-                  type="text"
-                  value={worktreeSlug}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  onBlur={() => setIsEditingSlug(false)}
-                  onKeyDown={handleSlugKeyDown}
-                  placeholder="slug"
-                  className={`w-28 rounded border bg-background/50 px-1 py-0.5 font-mono text-[11px] text-foreground outline-none placeholder:text-muted-foreground/50 ${isSlugValid ? 'border-border/40 focus:border-border/80' : 'border-red-400/60'}`}
-                  aria-label="Worktree slug"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleEditSlug}
-                  className="group inline-flex items-center gap-0.5 rounded px-0.5 py-0.5 font-mono text-[11px] text-muted-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
-                  aria-label="Edit worktree slug"
-                  tabIndex={0}
-                >
-                  <span>{worktreeSlug || '<slug>'}</span>
-                  <IconPencil className="size-2.5 text-muted-foreground/40 transition-colors group-hover:text-foreground/60" aria-hidden />
-                </button>
-              )}
-            </div>
-          )}
         </div>
       )}
-      <ChatInput autoFocus disabled={isLoggedOut} initialValue={draft} onDraftChange={handleDraftChange} onSendMessage={handleSend} workspace={workspace} />
+      <ChatInput autoFocus disabled={isLoggedOut} initialValue={draft} onDraftChange={handleDraftChange} onSendMessage={handleSend} workspace={workspace} isWorktree={useWorktree} />
     </div>
   )
 }

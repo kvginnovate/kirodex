@@ -13,7 +13,7 @@ import { useTaskStore } from "@/stores/taskStore";
 import ChatMarkdown from "./ChatMarkdown";
 import { ToolCallDisplay } from "./ToolCallDisplay";
 import { ThinkingDisplay } from "./ThinkingDisplay";
-import { TaskCompletionCard, parseReport, stripReport } from "./TaskCompletionCard";
+import { TaskCompletionCard, parseReport, stripReport, shouldRenderReportCard } from "./TaskCompletionCard";
 
 const LOADING_WORDS = [
   "Thinking",
@@ -227,7 +227,8 @@ export const MessageItem = memo(function MessageItem({
       : undefined;
 
   const report = !streaming ? parseReport(message.content) : null;
-  const displayContent = report ? stripReport(message.content) : message.content;
+  const isRichReport = report && shouldRenderReportCard(report);
+  const displayContent = !streaming ? stripReport(message.content) : message.content;
 
   return (
     <div
@@ -248,7 +249,7 @@ export const MessageItem = memo(function MessageItem({
         <ChatMarkdown text={displayContent} isStreaming={streaming} />
       ) : null}
 
-      {report && <TaskCompletionCard report={report} />}
+      {isRichReport && <TaskCompletionCard report={report} />}
     </div>
   );
 });

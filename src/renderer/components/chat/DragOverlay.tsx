@@ -66,8 +66,6 @@ export const DragOverlay = memo(function DragOverlay({ visible }: DragOverlayPro
         <rect
           x="2"
           y="2"
-          width="calc(100% - 4px)"
-          height="calc(100% - 4px)"
           rx="20"
           ry="20"
           fill="none"
@@ -76,6 +74,8 @@ export const DragOverlay = memo(function DragOverlay({ visible }: DragOverlayPro
           strokeDasharray="8 6"
           className="text-primary"
           style={{
+            width: 'calc(100% - 4px)',
+            height: 'calc(100% - 4px)',
             animation: visible ? 'dash-march 0.6s linear infinite' : 'none',
           }}
         />

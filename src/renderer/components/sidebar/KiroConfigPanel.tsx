@@ -322,7 +322,11 @@ export const KiroConfigPanel = memo(function KiroConfigPanel({
   const loadConfig = useKiroStore((s) => s.loadConfig)
   const activeWorkspace = useTaskStore((s) => {
     const id = s.selectedTaskId
-    return id ? s.tasks[id]?.workspace : s.pendingWorkspace
+    if (id) {
+      const t = s.tasks[id]
+      return t?.originalWorkspace ?? t?.workspace
+    }
+    return s.pendingWorkspace
   }) ?? null
 
   const [agentsOpen, setAgentsOpen] = useState(false)

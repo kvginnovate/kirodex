@@ -380,21 +380,23 @@ const BranchPanel = memo(function BranchPanel({ onDismiss }: { onDismiss: () => 
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const workspace = useSettingsStore((s) => s.activeWorkspace)
+  const workspace = useSettingsStore((s) => s.operationalWorkspace)
 
   const handleCreate = useCallback(async () => {
     const trimmed = name.trim()
     if (!trimmed || !workspace) return
+    const branchName = slugify(trimmed)
+    if (!branchName) return
     setIsCreating(true)
     setError(null)
     try {
-      await ipc.gitCreateBranch(workspace, trimmed)
+      await ipc.gitCreateBranch(workspace, branchName)
       const { selectedTaskId, tasks, upsertTask } = useTaskStore.getState()
       if (selectedTaskId && tasks[selectedTaskId]) {
         const task = tasks[selectedTaskId]
         upsertTask({
           ...task,
-          messages: [...task.messages, { role: 'system', content: `Created and checked out branch \`${trimmed}\``, timestamp: new Date().toISOString() }],
+          messages: [...task.messages, { role: 'system', content: `Created and checked out branch \`${branchName}\``, timestamp: new Date().toISOString() }],
         })
       }
       onDismiss()

@@ -9,8 +9,9 @@ import {
   IconGitFork,
   IconArrowLeft,
 } from '@tabler/icons-react'
-import { cn } from '@/lib/utils'
+import { cn, slugify } from '@/lib/utils'
 import { ipc } from '@/lib/ipc'
+import { useTaskStore } from '@/stores/taskStore'
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -178,11 +179,11 @@ export const BranchSelector = memo(function BranchSelector({ workspace, isWorktr
   const handleCreate = useCallback(
     async (name: string) => {
       if (!workspace || checkingOut) return
-      const trimmed = name.trim()
-      if (!trimmed) return
+      const branchName = slugify(name.trim())
+      if (!branchName) return
       setCheckingOut(true)
       try {
-        await ipc.gitCreateBranch(workspace, trimmed)
+        await ipc.gitCreateBranch(workspace, branchName)
         await fetchBranches()
       } catch (err) {
         console.error('[branch-selector] create failed:', err)
@@ -197,11 +198,16 @@ export const BranchSelector = memo(function BranchSelector({ workspace, isWorktr
   const handleCreateWorktree = useCallback(
     async (slug: string) => {
       if (!workspace || checkingOut) return
-      const trimmed = slug.trim()
-      if (!trimmed) return
+      const normalizedSlug = slugify(slug.trim())
+      if (!normalizedSlug) return
+      // Worktree must be created from the project root, not from inside another worktree
+      const task = useTaskStore.getState().selectedTaskId
+        ? useTaskStore.getState().tasks[useTaskStore.getState().selectedTaskId!]
+        : null
+      const projectRoot = task?.originalWorkspace ?? workspace
       setCheckingOut(true)
       try {
-        await ipc.gitWorktreeCreate(workspace, trimmed)
+        await ipc.gitWorktreeCreate(projectRoot, normalizedSlug)
         await fetchBranches()
       } catch (err) {
         console.error('[branch-selector] worktree create failed:', err)
