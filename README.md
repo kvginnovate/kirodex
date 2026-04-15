@@ -32,6 +32,8 @@
 [![Rust](https://img.shields.io/badge/Rust-%3E%3D1.78-orange.svg)](https://rustup.rs)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)]()
 
+`12 MB app` · `~0% CPU at idle` · `~110 MB RAM` · `Native Rust · No Electron`
+
 </div>
 
 ---
