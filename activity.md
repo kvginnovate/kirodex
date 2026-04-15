@@ -1,5 +1,29 @@
 # Activity Log
 
+## 2026-04-16 01:20 GST (Dubai)
+
+### BranchSelector: add force checkout for conflict errors
+
+`git_checkout` now accepts an optional `force` parameter. When checkout fails due to uncommitted changes conflicting with the target branch, the error banner shows a "Force checkout (discard local changes)" button that retries with `force: true`. This uses `CheckoutBuilder::force()` in git2.
+
+**Modified:** `src-tauri/src/commands/git.rs`, `src/renderer/lib/ipc.ts`, `src/renderer/components/chat/BranchSelector.tsx`
+
+## 2026-04-16 01:16 GST (Dubai)
+
+### BranchSelector: fix checkout not working, add worktree branch lock
+
+Branch checkout was silently swallowing errors. Added visible error banner in the popup. For worktree threads, branch checkout is now disabled with a "Branch locked to this worktree" indicator; non-current branches are grayed out. Errors from `gitCheckout` and `gitCreateBranch` are displayed inline instead of only logged to console.
+
+**Modified:** `src/renderer/components/chat/BranchSelector.tsx`
+
+## 2026-04-16 01:13 GST (Dubai)
+
+### Git: commit and push all changes
+
+Committed 2 new changes (worktree confirmation dialog feat + activity log docs) and pushed all 15 commits to `origin/main`. No branch created; pushed directly to main as requested.
+
+---
+
 ## 2026-04-16 01:12 GST (Dubai)
 
 ### Worktree: add confirmation dialog before deleting worktree threads
