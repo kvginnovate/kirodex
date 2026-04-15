@@ -18,6 +18,7 @@
     <a href="https://github.com/thabti/kirodex/issues">Request Feature</a>
   </p>
   <p align="center">
+    <img src="screenshots/main.png" alt="Kirodex screenshot" />
     <img src="screenshots/chat-task-list-diff-panel.png" alt="Kirodex screenshot" />
   </p>
 </p>
