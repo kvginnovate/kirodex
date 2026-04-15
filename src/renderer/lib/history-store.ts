@@ -23,11 +23,15 @@ interface SavedThread {
   createdAt: string
   messages: SavedMessage[]
   parentTaskId?: string
+  worktreePath?: string
+  originalWorkspace?: string
+  projectId?: string
 }
 
 interface SavedProject {
   workspace: string
   displayName?: string
+  projectId?: string
   threadIds: string[]
 }
 
@@ -48,7 +52,7 @@ export async function loadProjects(): Promise<SavedProject[]> {
 }
 
 /** Persist a snapshot of the current threads */
-export async function saveThreads(tasks: Record<string, AgentTask>, projectNames: Record<string, string>): Promise<void> {
+export async function saveThreads(tasks: Record<string, AgentTask>, projectNames: Record<string, string>, projectIds: Record<string, string> = {}): Promise<void> {
   const threads: SavedThread[] = Object.values(tasks)
     .filter((t) => !t.isArchived && t.messages.length > 0)
     .map((t) => ({
@@ -58,20 +62,25 @@ export async function saveThreads(tasks: Record<string, AgentTask>, projectNames
       createdAt: t.createdAt,
       messages: t.messages.map(toSavedMessage),
       ...(t.parentTaskId ? { parentTaskId: t.parentTaskId } : {}),
+      ...(t.worktreePath ? { worktreePath: t.worktreePath } : {}),
+      ...(t.originalWorkspace ? { originalWorkspace: t.originalWorkspace } : {}),
+      ...(t.projectId ? { projectId: t.projectId } : {}),
     }))
 
-  // Group thread IDs by workspace
+  // Group thread IDs by workspace — worktree threads nest under originalWorkspace
   const threadsByWorkspace = new Map<string, string[]>()
   for (const t of Object.values(tasks)) {
-    const ids = threadsByWorkspace.get(t.workspace) ?? []
+    const ws = t.originalWorkspace ?? t.workspace
+    const ids = threadsByWorkspace.get(ws) ?? []
     ids.push(t.id)
-    threadsByWorkspace.set(t.workspace, ids)
+    threadsByWorkspace.set(ws, ids)
   }
 
   const workspaces = [...threadsByWorkspace.keys()]
   const projects: SavedProject[] = workspaces.map((ws) => ({
     workspace: ws,
     ...(projectNames[ws] ? { displayName: projectNames[ws] } : {}),
+    ...(projectIds[ws] ? { projectId: projectIds[ws] } : {}),
     threadIds: threadsByWorkspace.get(ws) ?? [],
   }))
 
@@ -90,6 +99,9 @@ export function toArchivedTasks(saved: SavedThread[]): AgentTask[] {
     messages: t.messages.map(toTaskMessage),
     isArchived: true,
     ...(t.parentTaskId ? { parentTaskId: t.parentTaskId } : {}),
+    ...(t.worktreePath ? { worktreePath: t.worktreePath } : {}),
+    ...(t.originalWorkspace ? { originalWorkspace: t.originalWorkspace } : {}),
+    ...(t.projectId ? { projectId: t.projectId } : {}),
   }))
 }
 

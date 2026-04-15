@@ -133,6 +133,21 @@ describe('saveThreads', () => {
     expect(savedThreads[0].messages[0]).not.toHaveProperty('thinking')
   })
 
+  it('persists worktree metadata when present', async () => {
+    const tasks: Record<string, AgentTask> = {
+      't1': {
+        id: 't1', name: 'WT Task', workspace: '/ws/.kiro/worktrees/feat', status: 'paused',
+        createdAt: '', messages: [{ role: 'user', content: 'hi', timestamp: '' }],
+        worktreePath: '/ws/.kiro/worktrees/feat',
+        originalWorkspace: '/ws',
+      },
+    }
+    await saveThreads(tasks, {})
+    const savedThreads = mockSet.mock.calls.find((c: unknown[]) => c[0] === 'threads')?.[1]
+    expect(savedThreads[0].worktreePath).toBe('/ws/.kiro/worktrees/feat')
+    expect(savedThreads[0].originalWorkspace).toBe('/ws')
+  })
+
   it('groups threads by workspace into projects', async () => {
     const tasks: Record<string, AgentTask> = {
       't1': {
@@ -178,6 +193,18 @@ describe('toArchivedTasks', () => {
     const actual = toArchivedTasks(saved)
     expect(actual[0].messages[0].thinking).toBe('hmm')
   })
+
+  it('preserves worktree metadata', () => {
+    const saved = [{
+      id: 't1', name: 'WT Thread', workspace: '/ws/.kiro/worktrees/feat',
+      createdAt: '', messages: [{ role: 'user', content: 'hi', timestamp: '' }],
+      worktreePath: '/ws/.kiro/worktrees/feat',
+      originalWorkspace: '/ws',
+    }]
+    const actual = toArchivedTasks(saved)
+    expect(actual[0].worktreePath).toBe('/ws/.kiro/worktrees/feat')
+    expect(actual[0].originalWorkspace).toBe('/ws')
+  })
 })
 
 describe('clearHistory', () => {
@@ -217,5 +244,77 @@ describe('saveSoftDeleted', () => {
     }]
     await saveSoftDeleted(items)
     expect(mockSet).toHaveBeenCalledWith('softDeleted', items)
+  })
+})
+
+describe('projectId persistence', () => {
+  it('saveThreads persists projectId when present', async () => {
+    const tasks: Record<string, AgentTask> = {
+      't1': {
+        id: 't1', name: 'WT Task', workspace: '/ws/.kiro/worktrees/feat', status: 'paused',
+        createdAt: '', messages: [{ role: 'user', content: 'hi', timestamp: '' }],
+        projectId: '/ws',
+        worktreePath: '/ws/.kiro/worktrees/feat',
+        originalWorkspace: '/ws',
+      },
+    }
+    await saveThreads(tasks, {})
+    const savedThreads = mockSet.mock.calls.find((c: unknown[]) => c[0] === 'threads')?.[1]
+    expect(savedThreads[0].projectId).toBe('/ws')
+  })
+
+  it('saveThreads omits projectId when not present', async () => {
+    const tasks: Record<string, AgentTask> = {
+      't1': {
+        id: 't1', name: 'Task', workspace: '/ws', status: 'paused',
+        createdAt: '', messages: [{ role: 'user', content: 'hi', timestamp: '' }],
+      },
+    }
+    await saveThreads(tasks, {})
+    const savedThreads = mockSet.mock.calls.find((c: unknown[]) => c[0] === 'threads')?.[1]
+    expect(savedThreads[0]).not.toHaveProperty('projectId')
+  })
+
+  it('saveThreads groups worktree threads under originalWorkspace for projects', async () => {
+    const tasks: Record<string, AgentTask> = {
+      't1': {
+        id: 't1', name: 'Regular', workspace: '/ws', status: 'paused',
+        createdAt: '', messages: [{ role: 'user', content: 'hi', timestamp: '' }],
+      },
+      't2': {
+        id: 't2', name: 'Worktree', workspace: '/ws/.kiro/worktrees/feat', status: 'paused',
+        createdAt: '', messages: [{ role: 'user', content: 'hi', timestamp: '' }],
+        originalWorkspace: '/ws',
+        worktreePath: '/ws/.kiro/worktrees/feat',
+      },
+    }
+    await saveThreads(tasks, {})
+    const projects = mockSet.mock.calls.find((c: unknown[]) => c[0] === 'projects')?.[1]
+    // Both threads should be grouped under /ws, not /ws/.kiro/worktrees/feat
+    expect(projects).toHaveLength(1)
+    expect(projects[0].workspace).toBe('/ws')
+    expect(projects[0].threadIds).toContain('t1')
+    expect(projects[0].threadIds).toContain('t2')
+  })
+
+  it('toArchivedTasks restores projectId', () => {
+    const saved = [{
+      id: 't1', name: 'WT Thread', workspace: '/ws/.kiro/worktrees/feat',
+      createdAt: '', messages: [{ role: 'user', content: 'hi', timestamp: '' }],
+      projectId: '/ws',
+      worktreePath: '/ws/.kiro/worktrees/feat',
+      originalWorkspace: '/ws',
+    }]
+    const actual = toArchivedTasks(saved)
+    expect(actual[0].projectId).toBe('/ws')
+  })
+
+  it('toArchivedTasks omits projectId when not in saved data', () => {
+    const saved = [{
+      id: 't1', name: 'Thread', workspace: '/ws', createdAt: '',
+      messages: [{ role: 'user', content: 'hi', timestamp: '' }],
+    }]
+    const actual = toArchivedTasks(saved)
+    expect(actual[0]).not.toHaveProperty('projectId')
   })
 })

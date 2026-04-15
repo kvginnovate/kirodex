@@ -20,21 +20,24 @@ export function joinChunk(accumulated: string, chunk: string): string {
   return accumulated + chunk
 }
 
-const MAX_SLUG_LENGTH = 64 as const
+import slugifyPkg from 'slugify'
+
+const MAX_SLUG_LENGTH = 30 as const
 
 /** Convert a thread name to a valid worktree slug. */
 export const slugify = (name: string): string => {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+  const slug = slugifyPkg(name, { lower: true, remove: /[^\w\s._-]/g, trim: true })
+  return slug
+    .replace(/^[-.]+|[-.]+$/g, '')
     .replace(/-{2,}/g, '-')
     .slice(0, MAX_SLUG_LENGTH)
+    .replace(/[-.]$/g, '')
 }
 
 /** Validate a slug matches the Rust-side rules. */
 export const isValidWorktreeSlug = (slug: string): boolean => {
   if (slug.length === 0 || slug.length > MAX_SLUG_LENGTH) return false
   if (slug.includes('..')) return false
+  if (slug.startsWith('.') || slug.endsWith('.')) return false
   return /^[a-zA-Z0-9._-]+$/.test(slug)
 }

@@ -96,21 +96,38 @@ describe('slugify', () => {
     expect(slugify('foo---bar')).toBe('foo-bar')
   })
 
-  it('truncates to 64 characters', () => {
+  it('truncates to 30 characters', () => {
     const long = 'a'.repeat(100)
-    expect(slugify(long).length).toBe(64)
+    expect(slugify(long).length).toBe(30)
   })
 
   it('preserves dots and underscores', () => {
     expect(slugify('v1.0_release')).toBe('v1.0_release')
   })
 
-  it('handles unicode by stripping', () => {
-    expect(slugify('café-résumé')).toBe('caf-r-sum')
+  it('handles unicode by transliterating', () => {
+    expect(slugify('café-résumé')).toBe('cafe-resume')
   })
 
   it('returns empty for empty input', () => {
     expect(slugify('')).toBe('')
+  })
+
+  it('strips trailing dots', () => {
+    expect(slugify('updating-claude.')).toBe('updating-claude')
+  })
+
+  it('strips leading dots', () => {
+    expect(slugify('.hidden-file')).toBe('hidden-file')
+  })
+
+  it('strips trailing dot after truncation', () => {
+    const input = 'a'.repeat(29) + '.'
+    expect(slugify(input).endsWith('.')).toBe(false)
+  })
+
+  it('handles input that becomes only dots and dashes', () => {
+    expect(slugify('...')).toBe('')
   })
 })
 
@@ -125,8 +142,8 @@ describe('isValidWorktreeSlug', () => {
     expect(isValidWorktreeSlug('')).toBe(false)
   })
 
-  it('rejects strings over 64 chars', () => {
-    expect(isValidWorktreeSlug('a'.repeat(65))).toBe(false)
+  it('rejects strings over 30 chars', () => {
+    expect(isValidWorktreeSlug('a'.repeat(31))).toBe(false)
   })
 
   it('rejects double dots', () => {
@@ -137,5 +154,13 @@ describe('isValidWorktreeSlug', () => {
     expect(isValidWorktreeSlug('foo/bar')).toBe(false)
     expect(isValidWorktreeSlug('foo bar')).toBe(false)
     expect(isValidWorktreeSlug('foo@bar')).toBe(false)
+  })
+
+  it('rejects slugs ending with dot', () => {
+    expect(isValidWorktreeSlug('claude.')).toBe(false)
+  })
+
+  it('rejects slugs starting with dot', () => {
+    expect(isValidWorktreeSlug('.hidden')).toBe(false)
   })
 })

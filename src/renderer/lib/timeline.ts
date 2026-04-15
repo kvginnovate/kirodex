@@ -1,5 +1,5 @@
 import type { TaskMessage, ToolCall } from '@/types'
-import { parseReport } from '@/components/chat/TaskCompletionCard'
+import { parseReport, shouldRenderReportCard } from '@/components/chat/TaskCompletionCard'
 import { hasQuestionBlocks } from '@/lib/question-parser'
 
 /** Check if a tool call represents a file mutation (edit, delete, move) */
@@ -22,7 +22,7 @@ export interface UserMessageRow {
   questionAnswers?: { question: string; answer: string }[]
 }
 
-export type SystemMessageVariant = 'error' | 'info' | 'fork'
+export type SystemMessageVariant = 'error' | 'info' | 'fork' | 'worktree'
 
 export interface SystemMessageRow {
   kind: 'system-message'
@@ -117,13 +117,14 @@ export function deriveTimeline(
 
     if (msg.role === 'system') {
       const isFork = msg.content.startsWith('Forked from:')
+      const isWorktree = msg.content.startsWith('Working in worktree')
       const isError = msg.content.startsWith('⚠️') || msg.content.toLowerCase().includes('failed')
       rows.push({
         kind: 'system-message',
         id: `msg-${i}-system`,
         content: msg.content,
         timestamp: msg.timestamp,
-        variant: isFork ? 'fork' : isError ? 'error' : 'info',
+        variant: isFork ? 'fork' : isWorktree ? 'worktree' : isError ? 'error' : 'info',
       })
       continue
     }
@@ -162,7 +163,11 @@ export function deriveTimeline(
           kind: 'changed-files',
           id: `msg-${i}-changed-files`,
           toolCalls: msg.toolCalls!,
-          report: msg.content ? parseReport(msg.content) ?? undefined : undefined,
+          report: (() => {
+            if (!msg.content) return undefined
+            const parsed = parseReport(msg.content)
+            return parsed && shouldRenderReportCard(parsed) ? parsed : undefined
+          })(),
         })
       }
     }
