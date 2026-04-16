@@ -211,6 +211,30 @@ fn is_within_workspace(workspace: &str, path: &str) -> bool {
     false
 }
 
+/// Produce a user-friendly error message for common prompt/model errors.
+fn friendly_prompt_error(raw: &str) -> String {
+    let lower = raw.to_lowercase();
+    if lower.contains("accessdeniedexception") || lower.contains("access denied") {
+        return format!("{raw}\n\nTip: Your AWS credentials may not have permission to invoke this model. Check that your IAM user/role has `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` permissions, and that the model is enabled in your AWS region.");
+    }
+    if lower.contains("unauthorizedexception") || lower.contains("unauthorized") || lower.contains("security token") || lower.contains("not authorized") {
+        return format!("{raw}\n\nTip: Your AWS credentials appear to be invalid or expired. Try refreshing your credentials (e.g. `aws sso login`) or check your AWS_PROFILE environment variable.");
+    }
+    if lower.contains("throttlingexception") || lower.contains("throttling") || lower.contains("rate exceeded") || lower.contains("too many requests") {
+        return format!("{raw}\n\nTip: You've hit a rate limit. Wait a moment and try again, or close unused sessions to reduce concurrent requests.");
+    }
+    if lower.contains("validationexception") {
+        return format!("{raw}\n\nTip: This often means the prompt is too large or too many concurrent requests are active. Try closing unused sessions or trimming alwaysApply context rules to reduce per-request token usage.");
+    }
+    if lower.contains("resourcenotfoundexception") || lower.contains("model not found") {
+        return format!("{raw}\n\nTip: The selected model may not be available in your AWS region, or you may need to request access to it in the AWS Bedrock console.");
+    }
+    if lower.contains("modelerrorexception") || lower.contains("model error") || lower.contains("internalservererror") || lower.contains("serviceexception") {
+        return format!("{raw}\n\nTip: The model service returned an internal error. This is usually temporary — wait a moment and try again.");
+    }
+    raw.to_string()
+}
+
 /// Extract absolute file paths from user message text.
 /// Matches tokens that start with `/` and look like file paths.
 fn extract_paths_from_message(text: &str) -> Vec<String> {
@@ -756,11 +780,7 @@ async fn run_acp_connection(
                     Err(e) => {
                         use tauri::Emitter;
                         let err_str = e.to_string();
-                        let message = if err_str.contains("ValidationException") {
-                            format!("{err_str}\n\nTip: This often means the prompt is too large or too many concurrent requests are active. Try closing unused sessions or trimming alwaysApply context rules to reduce per-request token usage.")
-                        } else {
-                            err_str.clone()
-                        };
+                        let message = friendly_prompt_error(&err_str);
                         let _ = app.emit("task_error", serde_json::json!({
                             "taskId": task_id, "message": message
                         }));

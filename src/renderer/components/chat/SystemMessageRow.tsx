@@ -60,11 +60,36 @@ export const SystemMessageRow = memo(function SystemMessageRow({ row }: { row: S
     )
   }
 
+  // Error variant — show a card for multi-line errors (e.g. model errors with tips)
+  const cleaned = row.content.replace(/^\u26a0\ufe0f\s*/, '')
+  const parts = cleaned.split(/\n\n/)
+  const hasDetail = parts.length > 1
+
+  if (hasDetail) {
+    return (
+      <div className="pb-4" data-timeline-row-kind="system-message">
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 lg:max-w-4xl xl:max-w-5xl">
+          <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3">
+            <div className="flex items-start gap-2.5">
+              <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive/70" aria-hidden />
+              <div className="min-w-0 space-y-2 text-[13px]">
+                <p className="break-words text-foreground/90"><HighlightText text={parts[0]} /></p>
+                {parts.slice(1).map((part, i) => (
+                  <p key={i} className="break-words text-muted-foreground text-[12px]"><HighlightText text={part} /></p>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="pb-4" data-timeline-row-kind="system-message">
       <div className="mx-auto flex items-center justify-center gap-1.5 text-[12px] text-muted-foreground/60">
         <IconAlertTriangle className="size-3.5 shrink-0" aria-hidden />
-        <span className="break-words"><HighlightText text={row.content.replace(/^\u26a0\ufe0f\s*/, '')} /></span>
+        <span className="break-words"><HighlightText text={cleaned} /></span>
       </div>
     </div>
   )
