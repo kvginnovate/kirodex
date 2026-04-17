@@ -1,60 +1,44 @@
 # Activity Log
 
-## 2026-04-15 20:54 (Dubai Time) — CLAUDE.md Audit for apps/api
+## 2026-04-17 16:00 (Dubai) — Split monolithic acp.rs into focused modules
 
-**Task:** Audit the `apps/api` directory of the Lastline monorepo to verify accuracy of `apps/api/CLAUDE.md` against actual source files.
+**Task:** Split `src-tauri/src/commands/acp.rs` (~1200 lines) into focused modules under `src-tauri/src/commands/acp/` directory.
 
-**Location:** `/Users/sabeur/Documents/work/GitHub/personal/lastline/apps/api/`
+**Files created:**
+- `src-tauri/src/commands/acp/mod.rs` — Module root with re-exports and utility functions (now_millis, now_rfc3339, days_to_ymd)
+- `src-tauri/src/commands/acp/types.rs` — All frontend-facing types (Task, AcpState, ConnectionHandle, etc.)
+- `src-tauri/src/commands/acp/sandbox.rs` — Path checking and extraction functions (is_within_workspace, is_path_allowed, etc.)
+- `src-tauri/src/commands/acp/client.rs` — KirodexClient struct and acp::Client impl
+- `src-tauri/src/commands/acp/connection.rs` — spawn_connection and run_acp_connection
+- `src-tauri/src/commands/acp/commands.rs` — All #[tauri::command] functions (14 commands)
+- `src-tauri/src/commands/acp/tests.rs` — All 169 tests (previously in #[cfg(test)] mod tests)
 
-**Files checked:**
-- `package.json` — scripts and dependencies
-- `src/main.ts` — bootstrap and middleware stack
-- `src/` directory listing (depth 1) — module structure
-- `src/data-source.ts` — entity registration
-- `src/app.module.ts` — module imports and entity arrays
-- `src/common/` — infrastructure directory structure
-- `src/auth/guards/` — all guard files
-- `src/entities/` — all entity files
-- `src/auth/decorators/` and `src/audit/decorators/` — decorator files
-- `.env.example` — environment variables
-- `src/integrations/` — integration subdirectories
-- `src/events/index.ts` — event types
+**Files deleted:**
+- `src-tauri/src/commands/acp.rs` — Original monolithic file
 
-**Key findings:**
-1. 🔴 `PasswordResetToken` entity registered in `data-source.ts` but missing from `app.module.ts` entities array
-2. 🟡 `employee-titles/` module not listed in CLAUDE.md module structure
-3. 🟡 3 employee-related auth guards undocumented
-4. 🟡 ~20 env vars from `.env.example` not in CLAUDE.md
-5. 🟡 6 package.json scripts not documented
-6. 🟡 WebSocket dependencies present but undocumented
-7. 🟢 FeedbackModule directory exists but not imported in app.module.ts
-8. 🟢 Several event types not listed in CLAUDE.md
+**Files unchanged:**
+- `src-tauri/src/commands/mod.rs` — Already had `pub mod acp;` which now resolves to `acp/mod.rs`
 
-**Overall assessment:** CLAUDE.md is largely accurate. No critical inaccuracies in documented content; issues are primarily omissions.
+**Verification:**
+- `cargo check` — passes (only pre-existing cocoa deprecation warnings)
+- `cargo test` — 169 tests pass, 0 failures
 
-## 2026-04-15 20:59 (Dubai)
-- **Task**: Update `apps/api/CLAUDE.md` with audit fixes (employee-titles module, guards, env vars, commands, WebSocket note, events, FeedbackModule note)
-- **Status**: Blocked — file `apps/api/CLAUDE.md` does not exist in this project. Current project is `kirodex-tauri` (Tauri desktop app), not a NestJS monorepo. Awaiting user clarification on correct path or project.
+## 2026-04-17 16:15 (Dubai) — parking_lot::Mutex migration
 
-## 2026-04-15 20:59 (Dubai Time)
-- **Task**: Update `apps/landing/CLAUDE.md` with audit fixes
-- **Status**: Blocked — file not found. Current working directory is `kirodex-tauri/src-tauri` (Tauri project). No `apps/landing/` directory exists here. Awaiting user clarification on correct project path.
+Replaced `std::sync::Mutex` with `parking_lot::Mutex` across the entire Kirodex Rust codebase and tuned the Cargo release profile.
 
-## 2026-04-15 20:59 (Dubai)
-- **Task**: Update `apps/app/CLAUDE.md` with audit fixes
-- **Status**: Blocked — file not found. Current workspace is `kirodex-tauri/src-tauri`, not the monorepo containing `apps/app/`. Awaiting user clarification on correct project path.
+### Files modified:
+- `Cargo.toml` — added `parking_lot = "0.12"`, changed `opt-level = "s"` → `opt-level = 2`, added `[profile.dev.package."*"]` with `opt-level = 2`
+- `src/commands/acp/types.rs` — switched Mutex import to parking_lot
+- `src/commands/acp/commands.rs` — removed all `.lock().map_err(...)? ` error handling (36 occurrences)
+- `src/commands/acp/client.rs` — switched `allowed_paths` type to `parking_lot::Mutex`, removed `.lock().unwrap_or_else(|e| e.into_inner())` (3 occurrences)
+- `src/commands/acp/connection.rs` — switched to `parking_lot::Mutex::new()`, removed `if let Ok(...)` lock patterns
+- `src/commands/settings.rs` — switched Mutex import, removed `?` after `.lock()` calls
+- `src/commands/pty.rs` — switched Mutex import, removed `.map_err(|_| AppError::LockPoisoned)?` (4 occurrences)
+- `src/commands/error.rs` — removed `LockPoisoned` variant, removed `From<PoisonError<T>>` impl, removed `lock_poisoned_display` test
+- `src/commands/git.rs` — fixed `.lock()?` and `.lock().map()` patterns (not in original spec but required for compilation)
+- `src/lib.rs` — replaced `match ... lock() { Ok(...) => ..., Err(e) => ... }` with direct lock usage in `shutdown_app`, updated doc comment
 
-## 2026-04-15 20:59 (Dubai Time)
-- **Task**: Update `apps/admin/CLAUDE.md` with audit fixes (VITE_APP_URL clarification, Orval generation note, Toaster details, types/index.ts clarification)
-- **Result**: File `apps/admin/CLAUDE.md` does not exist in this project. The current project is `kirodex-tauri` (a Tauri desktop app), not a monorepo with an `apps/admin` directory. Asked user for correct path.
-
-## 2026-04-15 20:59 (Dubai Time)
-- **Task**: Update `apps/analytics/CLAUDE.md` with audit fixes (missing env vars, security warning)
-- **Status**: Created new file. No existing `apps/analytics/CLAUDE.md` was found in this project (`kirodex-tauri/src-tauri`). Created the file with the requested environment variables (FRONTEND_URL, WEB_URL, ADMIN_URL, API_URL), CORS/click-notification note, and `.env.example` security warning.
-
-## 2026-04-15 20:59 (Dubai Time)
-- **Task**: Create `apps/chrome-extension/CLAUDE.md` for the Lastline Chrome extension
-- **Status**: Completed
-- **Location**: `/Users/sabeur/Documents/work/GitHub/personal/lastline/apps/chrome-extension/CLAUDE.md`
-- **Files read**: package.json, manifest.ts, vite.config.ts, constants.ts, types.ts, messages.ts, service-worker.ts, App.tsx, content.ts, router.ts, types.ts (providers), alarms.ts, api.ts
-- **Result**: Created 264-line CLAUDE.md covering commands, architecture, directory structure, authentication (admin + employee modes), environment detection, message types, content script providers, Chrome storage/alarms, build/loading instructions, critical rules, and key dependencies. Matched style of existing `apps/app/CLAUDE.md`.
+### Verification:
+- `cargo check` — passes (0 errors)
+- `cargo test` — 168 tests pass, 0 failures

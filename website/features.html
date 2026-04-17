@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Features — Kirodex</title>
+  <meta name="description" content="Everything Kirodex can do: chat, agents, diff viewer, git integration, terminal, plan mode, worktrees, and more.">
+  <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dist/style.css">
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-md">
+    <div class="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+      <a href="index.html" class="flex items-center gap-2.5 text-[15px] font-bold text-foreground no-underline">
+        <img src="assets/icon.svg" alt="" width="24" height="24" class="rounded">
+        Kirodex
+      </a>
+      <div class="flex items-center gap-6 text-[14px] text-muted-foreground">
+        <a href="features.html" class="text-foreground no-underline">Features</a>
+        <a href="changelog.html" class="transition-colors hover:text-foreground no-underline">Changelog</a>
+        <a href="https://github.com/thabti/kirodex" target="_blank" rel="noopener" class="transition-colors hover:text-foreground no-underline">GitHub ↗</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="flex flex-col items-center px-6 pt-28 pb-16 text-center">
+    <h1 class="mb-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">Features</h1>
+    <p class="max-w-2xl text-[17px] text-muted-foreground">Everything you need to work with AI coding agents, in a 12 MB native app.</p>
+  </section>
+
+  <div class="mx-auto max-w-5xl space-y-24 px-6 pb-32">
+
+    <!-- ── Chat and agents ──────────────────────────────────── -->
+    <section>
+      <div class="mb-3 flex items-center gap-2.5">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></svg>
+        <h2 class="text-2xl font-bold text-foreground">Chat and agents</h2>
+      </div>
+      <p class="mb-6 max-w-2xl text-[15px] text-muted-foreground">Full-featured chat interface powered by the Agent Client Protocol. Each conversation runs as an independent agent thread with its own context, tool calls, and execution history.</p>
+      <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Threaded conversations</h3><p class="text-[13px] text-muted-foreground">Each thread is an independent agent session with its own context window and tool access.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Slash commands</h3><p class="text-[13px] text-muted-foreground">/plan, /model, /agent, /btw, /branch, /worktree, /clear, /fork, /close with fuzzy search.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Agent mentions</h3><p class="text-[13px] text-muted-foreground">@agent pills with built-in agents, styled icons, and fuzzy matching.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Plan mode</h3><p class="text-[13px] text-muted-foreground">Toggle between planning and building. Context-aware handoff card when usage grows past 30%.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Question cards</h3><p class="text-[13px] text-muted-foreground">Agents ask multi-choice questions; pick an option and reply inline.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">/btw side questions</h3><p class="text-[13px] text-muted-foreground">Ask quick questions in a floating overlay without polluting conversation history.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Thread archiving</h3><p class="text-[13px] text-muted-foreground">/close preserves conversation history in a read-only view instead of deleting.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Task management</h3><p class="text-[13px] text-muted-foreground">Create, pause, resume, cancel, and delete tasks. Queue messages while the agent is running.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Kiro config sidebar</h3><p class="text-[13px] text-muted-foreground">Browse agents, skills, steering rules, and MCP servers from your .kiro/ directory.</p></div>
+      </div>
+      <!-- Screenshot placeholder -->
+      <div class="flex h-80 items-center justify-center rounded-2xl border border-dashed border-border bg-card/50">
+        <span class="text-[14px] text-muted-foreground/50">Screenshot: Chat interface with agent mentions and slash commands</span>
+      </div>
+    </section>
+
+    <!-- ── Code and diffs ───────────────────────────────────── -->
+    <section>
+      <div class="mb-3 flex items-center gap-2.5">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <h2 class="text-2xl font-bold text-foreground">Code and diffs</h2>
+      </div>
+      <p class="mb-6 max-w-2xl text-[15px] text-muted-foreground">See every change the agent makes with syntax-highlighted diffs. Click any file operation in chat to jump straight to the diff.</p>
+      <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Inline and side-by-side diffs</h3><p class="text-[13px] text-muted-foreground">Syntax-highlighted with Shiki. Toggle between unified and split views.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Code viewer</h3><p class="text-[13px] text-muted-foreground">Read tool calls render with line numbers and full syntax highlighting.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Changed files summary</h3><p class="text-[13px] text-muted-foreground">Per-file +/- stats with one-click stage and revert.</p></div>
+      </div>
+      <div class="flex h-80 items-center justify-center rounded-2xl border border-dashed border-border bg-card/50">
+        <span class="text-[14px] text-muted-foreground/50">Screenshot: Side-by-side diff viewer with syntax highlighting</span>
+      </div>
+    </section>
+
+    <!-- ── Git ──────────────────────────────────────────────── -->
+    <section>
+      <div class="mb-3 flex items-center gap-2.5">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-orange-400"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+        <h2 class="text-2xl font-bold text-foreground">Git integration</h2>
+      </div>
+      <p class="mb-6 max-w-2xl text-[15px] text-muted-foreground">Native git operations via libgit2. No shell commands, no PATH dependency. SSH and HTTPS credential support built in.</p>
+      <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Branch, stage, commit, push</h3><p class="text-[13px] text-muted-foreground">Full git workflow without leaving the app. Live diff stats in the header bar.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Git worktrees</h3><p class="text-[13px] text-muted-foreground">Isolate each thread in its own working directory. Auto-cleanup on thread close.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">/branch and /worktree</h3><p class="text-[13px] text-muted-foreground">Create branches and worktrees inline. Symlink node_modules and copy gitignored files.</p></div>
+      </div>
+      <div class="flex h-80 items-center justify-center rounded-2xl border border-dashed border-border bg-card/50">
+        <span class="text-[14px] text-muted-foreground/50">Screenshot: Git branch selector and worktree creation</span>
+      </div>
+    </section>
+
+    <!-- ── Terminal ─────────────────────────────────────────── -->
+    <section>
+      <div class="mb-3 flex items-center gap-2.5">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-violet-400"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg>
+        <h2 class="text-2xl font-bold text-foreground">Integrated terminal</h2>
+      </div>
+      <p class="mb-6 max-w-2xl text-[15px] text-muted-foreground">A real PTY terminal powered by xterm.js and portable-pty. Toggle with Cmd+J.</p>
+      <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Full PTY emulation</h3><p class="text-[13px] text-muted-foreground">Run any command. Resizable drawer at the bottom of the chat panel.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Per-thread terminals</h3><p class="text-[13px] text-muted-foreground">Each thread gets its own terminal session, scoped to the project directory.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Clean lifecycle</h3><p class="text-[13px] text-muted-foreground">PTY processes are killed on window close and thread teardown. No orphans.</p></div>
+      </div>
+      <div class="flex h-80 items-center justify-center rounded-2xl border border-dashed border-border bg-card/50">
+        <span class="text-[14px] text-muted-foreground/50">Screenshot: Integrated terminal drawer below chat</span>
+      </div>
+    </section>
+
+    <!-- ── Notifications ────────────────────────────────────── -->
+    <section>
+      <div class="mb-3 flex items-center gap-2.5">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-400"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <h2 class="text-2xl font-bold text-foreground">Notifications</h2>
+      </div>
+      <p class="mb-6 max-w-2xl text-[15px] text-muted-foreground">Native desktop notifications when the agent finishes while the app is in the background. Configurable in settings.</p>
+    </section>
+
+    <!-- ── Settings ─────────────────────────────────────────── -->
+    <section>
+      <div class="mb-3 flex items-center gap-2.5">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <h2 class="text-2xl font-bold text-foreground">Settings</h2>
+      </div>
+      <p class="mb-6 max-w-2xl text-[15px] text-muted-foreground">Full-screen settings panel with everything you need to configure.</p>
+      <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">CLI path and model</h3><p class="text-[13px] text-muted-foreground">Configure kiro-cli path, default model, and auto-approve preferences.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Appearance</h3><p class="text-[13px] text-muted-foreground">Dark, light, and system themes. Adjustable font size. Sidebar position.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Keyboard shortcuts</h3><p class="text-[13px] text-muted-foreground">Cmd+L to focus chat, Cmd+J for terminal, Cmd+D for diffs, Cmd+B for /btw, and more.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Per-project preferences</h3><p class="text-[13px] text-muted-foreground">Auto-approve, worktree defaults, symlink directories, and custom icons per project.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Auto-update</h3><p class="text-[13px] text-muted-foreground">Update checker with sidebar badge. One-click install when a new version is available.</p></div>
+        <div class="rounded-xl border border-border bg-card p-4"><h3 class="mb-1 text-[14px] font-semibold text-foreground">Privacy controls</h3><p class="text-[13px] text-muted-foreground">Optional anonymous analytics. No prompts, code, or file paths are ever sent.</p></div>
+      </div>
+      <div class="flex h-80 items-center justify-center rounded-2xl border border-dashed border-border bg-card/50">
+        <span class="text-[14px] text-muted-foreground/50">Screenshot: Settings panel with appearance and keyboard shortcuts</span>
+      </div>
+    </section>
+
+    <!-- ── Performance ──────────────────────────────────────── -->
+    <section>
+      <div class="mb-3 flex items-center gap-2.5">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-red-400"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <h2 class="text-2xl font-bold text-foreground">Performance</h2>
+      </div>
+      <p class="mb-6 max-w-2xl text-[15px] text-muted-foreground">Built with Tauri and Rust. No Electron, no bundled Chromium, no Node.js runtime.</p>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-xl border border-border bg-card p-4 text-center"><p class="text-2xl font-bold text-foreground">12 MB</p><p class="text-[13px] text-muted-foreground">App size</p></div>
+        <div class="rounded-xl border border-border bg-card p-4 text-center"><p class="text-2xl font-bold text-foreground">~0%</p><p class="text-[13px] text-muted-foreground">CPU at idle</p></div>
+        <div class="rounded-xl border border-border bg-card p-4 text-center"><p class="text-2xl font-bold text-foreground">~110 MB</p><p class="text-[13px] text-muted-foreground">RAM usage</p></div>
+        <div class="rounded-xl border border-border bg-card p-4 text-center"><p class="text-2xl font-bold text-foreground">~2s</p><p class="text-[13px] text-muted-foreground">Incremental build</p></div>
+      </div>
+    </section>
+
+    <!-- ── Keyboard shortcuts ───────────────────────────────── -->
+    <section>
+      <div class="mb-3 flex items-center gap-2.5">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></svg>
+        <h2 class="text-2xl font-bold text-foreground">Keyboard-first</h2>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"><kbd class="rounded border border-border bg-[#1a1a1a] px-2 py-0.5 text-[12px] font-mono text-muted-foreground">Cmd+L</kbd><span class="text-[13px] text-foreground">Focus chat input</span></div>
+        <div class="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"><kbd class="rounded border border-border bg-[#1a1a1a] px-2 py-0.5 text-[12px] font-mono text-muted-foreground">Cmd+J</kbd><span class="text-[13px] text-foreground">Toggle terminal</span></div>
+        <div class="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"><kbd class="rounded border border-border bg-[#1a1a1a] px-2 py-0.5 text-[12px] font-mono text-muted-foreground">Cmd+D</kbd><span class="text-[13px] text-foreground">Toggle diff panel</span></div>
+        <div class="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"><kbd class="rounded border border-border bg-[#1a1a1a] px-2 py-0.5 text-[12px] font-mono text-muted-foreground">Cmd+B</kbd><span class="text-[13px] text-foreground">Side question (/btw)</span></div>
+        <div class="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"><kbd class="rounded border border-border bg-[#1a1a1a] px-2 py-0.5 text-[12px] font-mono text-muted-foreground">Cmd+N</kbd><span class="text-[13px] text-foreground">New thread</span></div>
+        <div class="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"><kbd class="rounded border border-border bg-[#1a1a1a] px-2 py-0.5 text-[12px] font-mono text-muted-foreground">Esc</kbd><span class="text-[13px] text-foreground">Pause agent</span></div>
+        <div class="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"><kbd class="rounded border border-border bg-[#1a1a1a] px-2 py-0.5 text-[12px] font-mono text-muted-foreground">Cmd+,</kbd><span class="text-[13px] text-foreground">Open settings</span></div>
+        <div class="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"><kbd class="rounded border border-border bg-[#1a1a1a] px-2 py-0.5 text-[12px] font-mono text-muted-foreground">Cmd+Shift+[</kbd><span class="text-[13px] text-foreground">Previous thread</span></div>
+        <div class="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"><kbd class="rounded border border-border bg-[#1a1a1a] px-2 py-0.5 text-[12px] font-mono text-muted-foreground">Cmd+1-9</kbd><span class="text-[13px] text-foreground">Jump to thread</span></div>
+      </div>
+    </section>
+
+    <!-- ── CTA ──────────────────────────────────────────────── -->
+    <section class="text-center">
+      <h2 class="mb-4 text-2xl font-bold text-foreground">Ready to try it?</h2>
+      <a href="https://github.com/thabti/kirodex/releases/latest" class="inline-flex h-12 items-center gap-2.5 rounded-full bg-white px-8 text-[16px] font-medium text-black transition-all hover:bg-gray-200 no-underline">Download Kirodex</a>
+      <p class="mt-4 text-[14px] text-muted-foreground">macOS, Windows, and Linux. Open source, MIT licensed.</p>
+    </section>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-border py-8 text-center text-[13px] text-muted-foreground">
+    <p>Built by <a href="https://github.com/thabti" target="_blank" rel="noopener" class="text-foreground no-underline hover:underline">Sabeur Thabti</a>. Sponsored by <a href="https://lastline.app" target="_blank" rel="noopener" class="text-foreground no-underline hover:underline">Lastline</a>.</p>
+  </footer>
+
+</body>
+</html>
