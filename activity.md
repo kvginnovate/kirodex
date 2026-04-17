@@ -1,5 +1,100 @@
 # Activity Log
 
+## 2026-04-18 01:16 GST (Dubai)
+### CodePanel: Enable diff toggle during pending messages
+The diff toggle button in the header was visible when a project was selected but no task existed yet (pending state), but clicking it did nothing because `CodePanel` only rendered when `selectedTaskId` was set. Added a `git_diff` Rust command that takes a workspace path directly (no task ID needed), wired it through IPC, and updated `CodePanel` to accept an optional `workspace` prop. Updated `App.tsx` to render `CodePanel` when either `selectedTaskId` or `pendingWorkspace` is available.
+
+**Modified:**
+- `src-tauri/src/commands/git.rs`
+- `src-tauri/src/lib.rs`
+- `src/renderer/lib/ipc.ts`
+- `src/renderer/components/code/CodePanel.tsx`
+- `src/renderer/App.tsx`
+
+## 2026-04-18 01:12 GST (Dubai)
+### Git: Fix diff count mismatch between header bar and diff panel
+`git_diff_stats` was summing stats from staged and unstaged diffs independently, causing files with both staged and unstaged changes to be double-counted. Switched to `Diff::merge()` to combine both diffs before computing stats, matching the behavior of the diff panel.
+
+**Modified:**
+- `src-tauri/src/commands/git.rs`
+
+## 2026-04-18 01:14 GST (Dubai)
+### CodePanel: Switch commit message generation to AI
+Replaced local string-based commit message generation with AI-powered generation via `ipc.sendMessage`. Sends a compact prompt (file names + stats only) to the active agent, listens for `turn_end`, and extracts the first line of the response into the commit input. Shows a spinner while generating. Added `buildCommitPrompt` and `countDiffStats` to utils with 6 new tests (18 total).
+
+**Modified:**
+- `src/renderer/components/code/CodePanel.tsx`
+- `src/renderer/components/code/commit-message-utils.ts`
+- `src/renderer/components/code/commit-message-utils.test.ts`
+
+## 2026-04-18 01:11 GST (Dubai)
+### CodePanel: Add unit tests for commit message generation
+Extracted `parseFileNames` and `generateCommitMessage` to `commit-message-utils.ts` and added 12 unit tests covering empty diffs, single/multiple files, addition/deletion counting, basename extraction, and the 100-char fallback.
+
+**Modified:**
+- `src/renderer/components/code/CodePanel.tsx`
+- `src/renderer/components/code/commit-message-utils.ts` (new)
+- `src/renderer/components/code/commit-message-utils.test.ts` (new)
+
+## 2026-04-18 01:05 GST (Dubai)
+### CodePanel: Add generate commit message button
+Added an IconSparkles button next to the commit input that auto-generates a conventional commit message from diff stats (file names, +/- counts). Hidden when >30 files changed. Max 100 chars. Zero-token, instant, local generation.
+
+**Modified:**
+- `src/renderer/components/code/CodePanel.tsx`
+
+## 2026-04-18 01:04 GST (Dubai)
+### useSidebarTasks: Rename SortKey 'none' to 'created'
+Renamed the `SortKey` value from `'none'` to `'created'` in `useSidebarTasks.ts` and updated all references in `TaskSidebar.tsx` (SORT_OPTIONS key and default useState). The label was already "Created" in the UI; now the code value matches.
+
+**Modified:** `src/renderer/hooks/useSidebarTasks.ts`, `src/renderer/components/sidebar/TaskSidebar.tsx`
+
+## 2026-04-18 00:58 GST (Dubai)
+### DiffToolbar: Add staged file count
+Added a "N staged" indicator (blue text) to the DiffToolbar next to the +/- stats. Fetches staged stats via `ipc.gitStagedStats` in DiffViewer and passes the count down. Only shown when staged count > 0.
+
+**Modified:**
+- `src/renderer/components/code/DiffToolbar.tsx`
+- `src/renderer/components/code/DiffViewer.tsx`
+
+## 2026-04-18 00:58 GST (Dubai)
+### Sidebar: Rename "None" sort label to "Created"
+Renamed the default sort option from "None" to "Created" for clarity — communicates that threads appear in creation order.
+
+**Modified:** `src/renderer/components/sidebar/TaskSidebar.tsx`
+
+## 2026-04-18 00:57 GST (Dubai)
+### Sidebar: Add "None" sort option as default
+Added a "None" sort option to the sidebar task sort dropdown that preserves insertion order (no reordering). Changed the default from "Recent" to "None" so tasks stop jumping around on activity changes.
+
+**Modified:** `src/renderer/hooks/useSidebarTasks.ts`, `src/renderer/components/sidebar/TaskSidebar.tsx`
+
+## 2026-04-18 00:55 GST (Dubai)
+### DiffPanel/DiffFileActionBar: Stage button icon swaps from + to checkmark
+After clicking the stage button (per-file or batch), the icon changes from IconPlus to IconCheck for 1.5 seconds as a success indicator. The tooltip and aria-label update accordingly.
+
+**Modified:**
+- `src/renderer/components/code/DiffFileActionBar.tsx`
+- `src/renderer/components/code/DiffViewer.tsx`
+- `src/renderer/components/diff/DiffPanel.tsx`
+
+## 2026-04-18 00:54 GST (Dubai)
+### CodePanel: Move commit input to bottom of panel
+Moved the commit input from the collapsible DiffFileSidebar to the bottom of the CodePanel so it's always visible. Reverted DiffFileSidebar to its original state. The input is disabled when there are no changes or no workspace.
+
+**Modified:**
+- `src/renderer/components/code/CodePanel.tsx`
+- `src/renderer/components/code/DiffFileSidebar.tsx`
+- `src/renderer/components/code/DiffViewer.tsx`
+
+## 2026-04-18 00:48 GST (Dubai)
+### DiffFileSidebar: Add commit input at bottom of file list
+Added a commit message input with a commit button at the bottom of the Files Changed sidebar. The input calls `ipc.gitCommit` on Enter or button click, shows a loading spinner while committing, and is disabled when there are no changed files or no workspace. After a successful commit, the diff refreshes automatically.
+
+**Modified:**
+- `src/renderer/components/code/DiffFileSidebar.tsx`
+- `src/renderer/components/code/DiffViewer.tsx`
+
 ## 2026-04-18 00:39 GST (Dubai)
 ### UI: Revert sidebar toggle button move
 Reverted the sidebar toggle button back to the header breadcrumb. All five files restored to their pre-move state.
