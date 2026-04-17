@@ -1,386 +1,60 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { getVersion } from '@tauri-apps/api/app'
-import {
-  IconX, IconCheck, IconAlertCircle, IconChevronDown, IconLoader2, IconSearch,
-  IconKeyboard, IconSettings2, IconPaint, IconTool, IconTerminal,
-  IconArrowLeft, IconTrash, IconBrandGithub, IconDownload, IconRefresh,
-  IconUser, IconLogin, IconLogout, IconRestore,
-} from '@tabler/icons-react'
+import { IconX, IconArrowLeft, IconBrandGithub, IconSearch, IconRotate } from '@tabler/icons-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { useUpdateStore } from '@/stores/updateStore'
-import { ipc } from '@/lib/ipc'
-import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { AppSettings, ThemeMode, SoftDeletedThread } from '@/types'
+import type { AppSettings } from '@/types'
 import { applyTheme, persistTheme } from '@/lib/theme'
 import { AboutDialog } from './AboutDialog'
-import ThemeSelector from './ThemeSelector'
+import { NAV, SEARCHABLE_SETTINGS, type Section } from './settings-shared'
+import { AccountSection } from './account-section'
+import { GeneralSection } from './general-section'
+import { AppearanceSection } from './appearance-section'
+import { KeymapSection } from './keymap-section'
+import { AdvancedSection } from './advanced-section'
+import { ArchivesSection } from './archives-section'
 
-// ── Navigation ───────────────────────────────────────────────────
-
-type Section = 'account' | 'general' | 'appearance' | 'keymap' | 'advanced'
-
-const NAV: { id: Section; label: string; icon: typeof IconSettings2; description: string; sectionDescription: string; group?: string }[] = [
-  { id: 'account', label: 'Account', icon: IconUser, description: 'Auth status, login', sectionDescription: 'Manage your authentication and account preferences.', group: 'account' },
-  { id: 'general', label: 'General', icon: IconSettings2, description: 'CLI path, model, permissions', sectionDescription: 'Configure the CLI, default model, and permission behavior.', group: 'settings' },
-  { id: 'appearance', label: 'Appearance', icon: IconPaint, description: 'Theme, font size', sectionDescription: 'Customize the look and feel of Kirodex.', group: 'settings' },
-  { id: 'keymap', label: 'Keyboard', icon: IconKeyboard, description: 'Shortcuts reference', sectionDescription: 'View all available keyboard shortcuts.', group: 'settings' },
-  { id: 'advanced', label: 'Advanced', icon: IconTool, description: 'Data, commits', sectionDescription: 'Privacy, git integration, and data management.', group: 'settings' },
-]
-
-// ── Keymap data ──────────────────────────────────────────────────
-
-const IS_MAC = navigator.platform.toUpperCase().includes('MAC')
-const MOD = IS_MAC ? '\u2318' : 'Ctrl'
-const SHIFT = IS_MAC ? '\u21E7' : 'Shift'
-
-interface KeymapEntry { command: string; keys: string; group: string }
-
-const KEYMAP: KeymapEntry[] = [
-  { group: 'Navigation', command: 'Previous thread', keys: `${MOD}+${SHIFT}+[` },
-  { group: 'Navigation', command: 'Next thread', keys: `${MOD}+${SHIFT}+]` },
-  { group: 'Navigation', command: 'Jump to thread 1–9', keys: `${MOD}+1 … 9` },
-  { group: 'Panels', command: 'Toggle sidebar', keys: `${MOD}+B` },
-  { group: 'Panels', command: 'Toggle terminal', keys: `${MOD}+J` },
-  { group: 'Panels', command: 'Toggle diff panel', keys: `${MOD}+D` },
-  { group: 'Panels', command: 'Open settings', keys: `${MOD}+,` },
-  { group: 'Actions', command: 'New project', keys: `${MOD}+O` },
-  { group: 'Actions', command: 'New thread', keys: `${MOD}+N` },
-  { group: 'Actions', command: 'Close thread', keys: `${MOD}+W` },
-  { group: 'Chat', command: 'Send message', keys: 'Enter' },
-  { group: 'Chat', command: 'New line', keys: `${SHIFT}+Enter` },
-  { group: 'Chat', command: 'Previous message', keys: '\u2191 (at start)' },
-  { group: 'Chat', command: 'Focus chat input', keys: `${MOD}+L` },
-  { group: 'Chat', command: 'Search messages', keys: `${MOD}+F` },
-  { group: 'Chat', command: 'Pause agent', keys: 'Escape (while running)' },
-]
-
-const FONT_SIZE_MIN = 14
-const FONT_SIZE_MAX = 18
-
-// ── Reusable components ──────────────────────────────────────────
-
-interface SettingRowProps {
-  label: string
-  description: string
-  children: React.ReactNode
-  className?: string
+const defaultSettings: AppSettings = {
+  kiroBin: 'kiro-cli',
+  agentProfiles: [],
+  fontSize: 14,
+  sidebarPosition: 'left',
+  analyticsEnabled: true,
 }
-
-const SettingRow = ({ label, description, children, className }: SettingRowProps) => (
-  <div className={cn('flex items-center justify-between gap-4 py-3 transition-colors hover:bg-muted/5 -mx-5 px-5 rounded-lg', className)}>
-    <div className="min-w-0 flex-1">
-      <p className="text-[13px] font-medium text-foreground">{label}</p>
-      <p className="text-[11.5px] leading-relaxed text-muted-foreground">{description}</p>
-    </div>
-    <div className="shrink-0">{children}</div>
-  </div>
-)
-
-const SectionLabel = ({ title }: { title: string }) => (
-  <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
-)
-
-const SectionHeader = ({ section }: { section: Section }) => {
-  const nav = NAV.find((n) => n.id === section)
-  if (!nav) return null
-  return (
-    <div className="mb-6">
-      <div className="flex items-center gap-2.5">
-        <nav.icon className="size-5 text-primary" />
-        <h3 className="text-[17px] font-semibold text-foreground">{nav.label}</h3>
-      </div>
-      <p className="mt-1 text-[12.5px] text-muted-foreground">{nav.sectionDescription}</p>
-    </div>
-  )
-}
-
-const SettingsCard = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-  <div className={cn(
-    'rounded-xl border border-border/50 bg-card/70 px-5 py-1 shadow-sm transition-colors',
-    className,
-  )}>
-    {children}
-  </div>
-)
-
-const HOUR_MS = 60 * 60 * 1000
-const DAY_MS = 24 * HOUR_MS
-const TWO_DAYS_MS = 48 * HOUR_MS
-
-const formatTimeRemaining = (iso: string): string => {
-  const remaining = TWO_DAYS_MS - (Date.now() - new Date(iso).getTime())
-  if (remaining <= 0) return 'expiring'
-  const days = Math.floor(remaining / DAY_MS)
-  const hrs = Math.floor((remaining % DAY_MS) / HOUR_MS)
-  if (days > 0) return `${days}d ${hrs}h left`
-  return `${hrs}h left`
-}
-
-const DeletedThreadsRestore = () => {
-  const softDeleted = useTaskStore((s) => s.softDeleted)
-  const projectNames = useTaskStore((s) => s.projectNames)
-  const restoreTask = useTaskStore((s) => s.restoreTask)
-  const permanentlyDeleteTask = useTaskStore((s) => s.permanentlyDeleteTask)
-  const [confirmId, setConfirmId] = useState<string | null>(null)
-  const entries = Object.entries(softDeleted)
-  if (entries.length === 0) {
-    return (
-      <div className={cn('rounded-xl border border-border/50 bg-card/70 px-5 py-6 shadow-sm')}>
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-muted/30">
-            <IconTrash className="size-4 text-muted-foreground/70" />
-          </div>
-          <p className="text-[13px] font-medium text-muted-foreground">No deleted threads</p>
-          <p className="text-[11px] text-muted-foreground">Deleted threads appear here for 2 days before permanent removal</p>
-        </div>
-      </div>
-    )
-  }
-  // Group by workspace
-  const grouped = new Map<string, Array<[string, SoftDeletedThread]>>()
-  for (const entry of entries) {
-    const ws = entry[1].task.workspace
-    if (!grouped.has(ws)) grouped.set(ws, [])
-    grouped.get(ws)!.push(entry)
-  }
-  return (
-    <div className={cn('rounded-xl border border-border/50 bg-card/70 shadow-sm overflow-hidden')}>
-      <div className="border-b border-border/60 px-5 py-3">
-        <p className="text-[12px] font-medium text-foreground/80">{entries.length} deleted {entries.length === 1 ? 'thread' : 'threads'}</p>
-        <p className="text-[11px] text-muted-foreground">Permanently removed after 2 days</p>
-      </div>
-      <div className="divide-y divide-border/20">
-        {[...grouped.entries()].map(([ws, items]) => (
-          <div key={ws} className="px-5 py-3">
-            <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-              <span className="size-1.5 rounded-full bg-muted-foreground/30" />
-              {projectNames[ws] ?? ws.split('/').pop() ?? ws}
-            </p>
-            <div className="flex flex-col gap-1.5">
-              {items.map(([id, { task, deletedAt }]) => (
-                <div key={id} className="group flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/20">
-                  {confirmId === id ? (
-                    <>
-                      <p className="flex-1 text-[12px] text-muted-foreground">Delete permanently?</p>
-                      <button
-                        type="button"
-                        onClick={() => { permanentlyDeleteTask(id); setConfirmId(null) }}
-                        className="rounded-md bg-destructive/90 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-destructive transition-colors"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmId(null)}
-                        className="rounded-md border border-border px-2.5 py-1 text-[11px] text-foreground hover:bg-accent transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[12.5px] text-foreground/90">{task.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{formatTimeRemaining(deletedAt)}</p>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              aria-label={`Restore ${task.name}`}
-                              onClick={() => restoreTask(id)}
-                              className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-primary/15 hover:text-primary transition-colors"
-                            >
-                              <IconRestore className="size-3.5" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">Restore</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              aria-label={`Permanently delete ${task.name}`}
-                              onClick={() => setConfirmId(id)}
-                              className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/15 hover:text-destructive transition-colors"
-                            >
-                              <IconTrash className="size-3.5" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">Delete permanently</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-const Divider = () => <div className="border-t border-border/70" />
-
-// ── Updates card ─────────────────────────────────────────────────
-
-const UpdatesCard = () => {
-  const { status, updateInfo, progress, error } = useUpdateStore()
-  const [isChecking, setIsChecking] = useState(false)
-
-  const handleCheck = async () => {
-    setIsChecking(true)
-    try {
-      const { check } = await import('@tauri-apps/plugin-updater')
-      useUpdateStore.getState().setStatus('checking')
-      const update = await check()
-      if (update) {
-        useUpdateStore.getState().setUpdateInfo({
-          version: update.version,
-          date: update.date ?? undefined,
-          body: update.body ?? undefined,
-        })
-        useUpdateStore.getState().setStatus('available')
-      } else {
-        useUpdateStore.getState().setStatus('idle')
-        useUpdateStore.getState().setUpdateInfo(null)
-      }
-    } catch (err) {
-      useUpdateStore.getState().setError(err instanceof Error ? err.message : 'Check failed')
-    } finally {
-      setIsChecking(false)
-    }
-  }
-
-  const handleDownload = async () => {
-    const { check } = await import('@tauri-apps/plugin-updater')
-    const update = await check()
-    if (!update) return
-    useUpdateStore.getState().setStatus('downloading')
-    useUpdateStore.getState().setProgress({ downloaded: 0, total: null })
-    try {
-      let totalBytes: number | null = null
-      let downloadedBytes = 0
-      await update.downloadAndInstall((event) => {
-        if (event.event === 'Started') {
-          totalBytes = (event.data as { contentLength?: number }).contentLength ?? null
-        } else if (event.event === 'Progress') {
-          downloadedBytes += (event.data as { chunkLength: number }).chunkLength
-          useUpdateStore.getState().setProgress({ downloaded: downloadedBytes, total: totalBytes })
-        }
-      })
-      useUpdateStore.getState().setStatus('ready')
-    } catch (err) {
-      useUpdateStore.getState().setError(err instanceof Error ? err.message : 'Download failed')
-    }
-  }
-
-  const handleRestart = async () => {
-    const { relaunch } = await import('@tauri-apps/plugin-process')
-    await relaunch()
-  }
-
-  const isCheckingState = isChecking || status === 'checking'
-  const pct = progress?.total ? Math.round((progress.downloaded / progress.total) * 100) : null
-
-  const statusText = (() => {
-    if (status === 'checking') return 'Checking for updates...'
-    if (status === 'available' && updateInfo) return `v${updateInfo.version} available`
-    if (status === 'downloading') return pct !== null ? `Downloading... ${pct}%` : 'Downloading...'
-    if (status === 'ready') return 'Update installed — restart to finish'
-    if (status === 'error') return error ?? 'Update check failed'
-    return 'Kirodex is up to date'
-  })()
-
-  return (
-    <SettingRow label="Software updates" description={statusText}>
-      <div className="flex items-center gap-2">
-        {status === 'available' && (
-          <button
-            type="button"
-            onClick={handleDownload}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            <IconDownload className="size-3" />
-            Update now
-          </button>
-        )}
-        {status === 'ready' && (
-          <button
-            type="button"
-            onClick={handleRestart}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            <IconRefresh className="size-3" />
-            Restart
-          </button>
-        )}
-        {(status === 'idle' || status === 'error') && (
-          <button
-            type="button"
-            onClick={handleCheck}
-            disabled={isCheckingState}
-            className="flex items-center gap-1.5 rounded-lg border border-input px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
-          >
-            {isCheckingState ? <IconLoader2 className="size-3 animate-spin" /> : <IconRefresh className="size-3" />}
-            Check
-          </button>
-        )}
-        {status === 'downloading' && <IconLoader2 className="size-4 animate-spin text-primary" />}
-      </div>
-    </SettingRow>
-  )
-}
-
-// ── Main component ───────────────────────────────────────────────
 
 export const SettingsPanel = () => {
   const open = useTaskStore((s) => s.isSettingsOpen)
   const setOpen = useTaskStore((s) => s.setSettingsOpen)
   const settingsInitialSection = useTaskStore((s) => s.settingsInitialSection)
-  const {
-    settings, saveSettings, availableModels, currentModelId,
-    modelsLoading, modelsError, fetchModels, activeWorkspace,
-    kiroAuth, kiroAuthChecked, checkAuth, logout, openLogin,
-  } = useSettingsStore()
+  const { settings, saveSettings, kiroAuthChecked, checkAuth } = useSettingsStore()
 
   const [section, setSection] = useState<Section>('general')
   const [draft, setDraft] = useState<AppSettings>(settings)
-  const [cliStatus, setCliStatus] = useState<'idle' | 'ok' | 'fail'>('idle')
-  const [isDetecting, setIsDetecting] = useState(false)
-  const [keymapFilter, setKeymapFilter] = useState('')
   const [appVersion, setAppVersion] = useState('')
   const [isAboutOpen, setIsAboutOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => { getVersion().then(setAppVersion).catch(() => {}) }, [])
   useEffect(() => { if (open && !kiroAuthChecked) checkAuth() }, [open, kiroAuthChecked, checkAuth])
   useEffect(() => { setDraft(settings) }, [settings])
 
-  // Jump to requested section when settings opens
   useEffect(() => {
-    if (open && settingsInitialSection) {
-      setSection(settingsInitialSection as Section)
-    }
+    if (open && settingsInitialSection) setSection(settingsInitialSection as Section)
   }, [open, settingsInitialSection])
 
   useEffect(() => {
     if (!open) return
+    setSearchQuery('')
     const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open, setOpen])
 
-  // Live-preview theme changes while settings is open
   useEffect(() => {
     if (!open) return
-    const mode = draft.theme ?? 'dark'
-    applyTheme(mode)
+    applyTheme(draft.theme ?? 'dark')
   }, [open, draft.theme])
 
   const handleSave = useCallback(() => {
@@ -391,33 +65,31 @@ export const SettingsPanel = () => {
     setOpen(false)
   }, [draft, saveSettings, setOpen])
 
-  // Revert theme on cancel / close without saving
   const handleClose = useCallback(() => {
-    const savedMode = settings.theme ?? 'dark'
-    applyTheme(savedMode)
+    applyTheme(settings.theme ?? 'dark')
     setOpen(false)
   }, [settings.theme, setOpen])
 
-  const testCli = useCallback(async () => {
-    setCliStatus('idle')
-    try { await ipc.listTasks(); setCliStatus('ok') } catch { setCliStatus('fail') }
-  }, [])
-
-  const browseCli = async () => {
-    const path = await ipc.pickFolder()
-    if (path) setDraft({ ...draft, kiroBin: path })
-  }
-
-  const handleAutoDetect = useCallback(async () => {
-    setIsDetecting(true)
-    try {
-      const path = await ipc.detectKiroCli()
-      if (path) setDraft((d) => ({ ...d, kiroBin: path }))
-    } finally { setIsDetecting(false) }
+  const handleRestoreDefaults = useCallback(() => {
+    setDraft(defaultSettings)
   }, [])
 
   const updateDraft = useCallback((patch: Partial<AppSettings>) => {
     setDraft((d) => ({ ...d, ...patch }))
+  }, [])
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return null
+    return SEARCHABLE_SETTINGS.filter((item) => {
+      const haystack = `${item.label} ${item.description} ${item.keywords}`.toLowerCase()
+      return q.split(/\s+/).every((word) => haystack.includes(word))
+    })
+  }, [searchQuery])
+
+  const handleSearchResultClick = useCallback((targetSection: Section) => {
+    setSection(targetSection)
+    setSearchQuery('')
   }, [])
 
   if (!open) return null
@@ -427,40 +99,75 @@ export const SettingsPanel = () => {
       <div className="absolute inset-0 bg-background/95 backdrop-blur-xl" />
 
       <div className="relative z-10 flex w-full">
-        {/* ── Sidebar ── */}
+        {/* Sidebar */}
         <nav data-testid="settings-nav" className="flex w-56 shrink-0 flex-col border-r border-border/60 px-3 pt-16 pb-4">
-          <div className="mb-6 px-3">
+          <div className="mb-4 px-3">
             <h2 className="text-lg font-semibold text-foreground">Settings</h2>
             <p className="mt-0.5 text-[11px] text-muted-foreground">Configure Kirodex</p>
           </div>
 
-          <div className="flex flex-1 flex-col gap-0.5">
-            {NAV.map((item, idx) => (
-              <div key={item.id}>
-                {idx > 0 && NAV[idx - 1].group !== item.group && (
-                  <div className="my-2 border-t border-border/50" />
-                )}
-                <button
-                  onClick={() => setSection(item.id)}
-                  className={cn(
-                    'relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all',
-                    section === item.id
-                      ? 'bg-primary/10 text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                  )}
-                >
-                  {section === item.id && (
-                    <div className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
-                  )}
-                  <item.icon className={cn('size-4 shrink-0', section === item.id ? 'text-primary' : 'opacity-60')} />
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-medium leading-tight">{item.label}</p>
-                    <p className="truncate text-[10px] opacity-50">{item.description}</p>
-                  </div>
-                </button>
-              </div>
-            ))}
+          {/* Search */}
+          <div className="relative mb-3 px-3">
+            <IconSearch className="pointer-events-none absolute left-5.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/60" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search settings…"
+              aria-label="Search settings"
+              className="flex h-8 w-full rounded-lg border border-input bg-background/50 pl-8 pr-3 text-[12px] placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
           </div>
+
+          {/* Search results dropdown */}
+          {searchResults !== null && searchResults.length > 0 ? (
+            <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-1">
+              {searchResults.map((item) => {
+                const navItem = NAV.find((n) => n.id === item.section)
+                return (
+                  <button
+                    key={`${item.section}-${item.label}`}
+                    onClick={() => handleSearchResultClick(item.section)}
+                    className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent/50"
+                  >
+                    {navItem && <navItem.icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />}
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-medium text-foreground">{item.label}</p>
+                      <p className="truncate text-[10px] text-muted-foreground">{item.description}</p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            /* Normal nav */
+            <div className="flex flex-1 flex-col gap-0.5">
+              {NAV.map((item, idx) => (
+                <div key={item.id}>
+                  {idx > 0 && NAV[idx - 1].group !== item.group && (
+                    <div className="my-2 border-t border-border/50" />
+                  )}
+                  <button
+                    onClick={() => setSection(item.id)}
+                    className={cn(
+                      'relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all',
+                      section === item.id
+                        ? 'bg-primary/10 text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                    )}
+                  >
+                    {section === item.id && (
+                      <div className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
+                    )}
+                    <item.icon className={cn('size-4 shrink-0', section === item.id ? 'text-primary' : 'opacity-60')} />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium leading-tight">{item.label}</p>
+                      <p className="truncate text-[10px] opacity-50">{item.description}</p>
+                    </div>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="mt-auto px-3 pt-4 border-t border-border/70 space-y-2">
             <button
@@ -471,57 +178,43 @@ export const SettingsPanel = () => {
               Back
             </button>
             <div className="flex items-center justify-between px-3 py-1">
-              <button
-                type="button"
-                onClick={() => setIsAboutOpen(true)}
-                className="text-left transition-colors hover:text-foreground"
-              >
+              <button type="button" onClick={() => setIsAboutOpen(true)} className="text-left transition-colors hover:text-foreground">
                 <p className="text-[10px] text-muted-foreground">Kirodex {appVersion ? `v${appVersion}` : ''}</p>
               </button>
-              <a
-                href="https://github.com/thabti/kirodex"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Kirodex on GitHub"
-                tabIndex={0}
-                className="text-muted-foreground transition-colors hover:text-foreground"
-              >
+              <a href="https://github.com/thabti/kirodex" target="_blank" rel="noopener noreferrer" aria-label="Kirodex on GitHub" tabIndex={0} className="text-muted-foreground transition-colors hover:text-foreground">
                 <IconBrandGithub className="size-3.5" />
               </a>
             </div>
           </div>
         </nav>
 
-        {/* ── Main content ── */}
+        {/* Main content */}
         <div className="flex flex-1 flex-col min-h-0">
-          {/* Top bar */}
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/60 px-6">
             <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
               <span>Settings</span>
               <span>/</span>
-              <span className="text-foreground/80 font-medium">{NAV.find((n) => n.id === section)?.label}</span>
+              <span className="text-foreground/80 font-medium">{searchResults !== null ? 'Search' : NAV.find((n) => n.id === section)?.label}</span>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleClose}
-                className="rounded-lg border border-border/50 px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                data-testid="settings-save-button"
-                className="rounded-lg bg-primary px-4 py-1.5 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                Save changes
-              </button>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    onClick={handleClose}
-                    data-testid="settings-close-button"
-                    className="ml-1 flex size-7 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+                    onClick={handleRestoreDefaults}
+                    className="flex items-center gap-1.5 rounded-lg border border-border/50 px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    aria-label="Restore default settings"
                   >
+                    <IconRotate className="size-3.5" />
+                    Defaults
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Restore all settings to defaults</TooltipContent>
+              </Tooltip>
+              <button onClick={handleClose} className="rounded-lg border border-border/50 px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">Cancel</button>
+              <button onClick={handleSave} data-testid="settings-save-button" className="rounded-lg bg-primary px-4 py-1.5 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90">Save changes</button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button onClick={handleClose} data-testid="settings-close-button" className="ml-1 flex size-7 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground">
                     <IconX className="size-4" />
                   </button>
                 </TooltipTrigger>
@@ -530,388 +223,46 @@ export const SettingsPanel = () => {
             </div>
           </div>
 
-          {/* Scrollable content */}
           <div className="flex-1 overflow-y-auto px-8 py-6">
             <div className="mx-auto max-w-2xl space-y-6">
-
-              {/* ── Account ── */}
-              {section === 'account' && (
-                <>
-                  <SectionHeader section="account" />
-                  <SettingsCard>
-                    {kiroAuth ? (
-                      <SettingRow
-                        label={kiroAuth.email ?? 'Authenticated'}
-                        description={`${kiroAuth.accountType}${kiroAuth.region ? ` · ${kiroAuth.region}` : ''}`}
-                      >
+              {searchResults !== null ? (
+                searchResults.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 py-16 text-center">
+                    <IconSearch className="size-5 text-muted-foreground/40" />
+                    <p className="text-[13px] text-muted-foreground">No settings match "{searchQuery}"</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="mb-3 text-[12px] text-muted-foreground">{searchResults.length} result{searchResults.length !== 1 ? 's' : ''}</p>
+                    {searchResults.map((item) => {
+                      const navItem = NAV.find((n) => n.id === item.section)
+                      return (
                         <button
-                          type="button"
-                          onClick={logout}
-                          className="flex items-center gap-1.5 rounded-lg border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
+                          key={`${item.section}-${item.label}`}
+                          onClick={() => handleSearchResultClick(item.section)}
+                          className="flex w-full items-center gap-3 rounded-xl border border-border/50 bg-card/70 px-5 py-3.5 text-left transition-colors hover:bg-accent/50"
                         >
-                          <IconLogout className="size-3" />
-                          Sign out
+                          {navItem && <navItem.icon className="size-4 shrink-0 text-muted-foreground/60" />}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[13px] font-medium text-foreground">{item.label}</p>
+                            <p className="text-[11px] text-muted-foreground">{item.description}</p>
+                          </div>
+                          <span className="shrink-0 rounded-md bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{navItem?.label}</span>
                         </button>
-                      </SettingRow>
-                    ) : (
-                      <SettingRow
-                        label="Not signed in"
-                        description="Sign in to access Kiro features and sync your preferences."
-                      >
-                        <button
-                          type="button"
-                          onClick={openLogin}
-                          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                        >
-                          <IconLogin className="size-3" />
-                          Sign in
-                        </button>
-                      </SettingRow>
-                    )}
-                  </SettingsCard>
-                </>
-              )}
-
-              {/* ── General ── */}
-              {section === 'general' && (
-                <>
-                  <SectionHeader section="general" />
-
-                  {/* Connection */}
-                  <div>
-                    <SectionLabel title="Connection" />
-                    <SettingsCard className="!py-4">
-                      <label className="mb-1.5 block text-[12px] font-medium text-foreground/70">kiro-cli path</label>
-                      <div className="flex gap-2">
-                        <input
-                          value={draft.kiroBin}
-                          data-testid="settings-cli-path-input"
-                          onChange={(e) => updateDraft({ kiroBin: e.target.value })}
-                          placeholder="kiro-cli"
-                          className="flex h-8 w-full flex-1 rounded-lg border border-input bg-background/50 px-3 font-mono text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        />
-                        <button onClick={browseCli} className="shrink-0 rounded-lg border border-input px-2.5 py-1 text-xs font-medium transition-colors hover:bg-accent">Browse</button>
-                        <button
-                          onClick={handleAutoDetect}
-                          disabled={isDetecting}
-                          className="flex shrink-0 items-center gap-1 rounded-lg border border-input px-2.5 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
-                        >
-                          {isDetecting ? <IconLoader2 className="size-3 animate-spin" /> : <IconSearch className="size-3" />}
-                          Detect
-                        </button>
-                      </div>
-                      <div className="mt-2 flex items-center gap-2">
-                        <button onClick={testCli} className="rounded-lg border border-input px-2.5 py-1 text-xs font-medium transition-colors hover:bg-accent">Test connection</button>
-                        {cliStatus === 'ok' && <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400"><IconCheck className="size-3" /> Connected</span>}
-                        {cliStatus === 'fail' && <span className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400"><IconAlertCircle className="size-3" /> Failed</span>}
-                      </div>
-                    </SettingsCard>
+                      )
+                    })}
                   </div>
-
-                  {/* Model */}
-                  <div>
-                    <SectionLabel title="Model" />
-                    <SettingsCard className="!py-4">
-                      <label className="mb-1.5 block text-[12px] font-medium text-foreground/70">Default model</label>
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <select
-                            value={draft.defaultModel ?? currentModelId ?? ''}
-                            onChange={(e) => updateDraft({ defaultModel: e.target.value || null })}
-                            disabled={modelsLoading || availableModels.length === 0}
-                            className={cn(
-                              'flex h-8 w-full appearance-none rounded-lg border border-input bg-background/50 px-3 pr-8 text-sm',
-                              'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-                              'disabled:cursor-not-allowed disabled:opacity-50',
-                            )}
-                          >
-                            {availableModels.length === 0 && !modelsLoading && <option value="">No models loaded</option>}
-                            {modelsLoading && <option value="">Loading…</option>}
-                            {availableModels.map((m) => <option key={m.modelId} value={m.modelId}>{m.name}</option>)}
-                          </select>
-                          <IconChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                        </div>
-                        <button
-                          onClick={() => fetchModels(draft.kiroBin)}
-                          disabled={modelsLoading}
-                          className="flex shrink-0 items-center gap-1 rounded-lg border border-input px-2.5 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
-                        >
-                          {modelsLoading ? <><IconLoader2 className="size-3 animate-spin" /> Loading…</> : <><IconRefresh className="size-3" /> Refresh</>}
-                        </button>
-                      </div>
-                      {modelsError && <span className="mt-1.5 flex items-center gap-1 text-xs text-red-600 dark:text-red-400"><IconAlertCircle className="size-3" /> {modelsError}</span>}
-                    </SettingsCard>
-                  </div>
-
-                  {/* Permissions */}
-                  <div>
-                    <SectionLabel title="Permissions" />
-                    <SettingsCard>
-                      <SettingRow label="Auto-approve" description="Skip permission prompts for tool calls">
-                        <Switch
-                          checked={draft.autoApprove ?? false}
-                          onCheckedChange={(checked) => updateDraft({ autoApprove: checked })}
-                          aria-label="Toggle auto-approve permissions"
-                        />
-                      </SettingRow>
-                      <Divider />
-                      <SettingRow label="Respect .gitignore" description="Hide gitignored files from @ mentions">
-                        <Switch
-                          checked={draft.respectGitignore ?? true}
-                          onCheckedChange={(checked) => updateDraft({ respectGitignore: checked })}
-                          aria-label="Toggle respect gitignore"
-                        />
-                      </SettingRow>
-                    </SettingsCard>
-                  </div>
-
-                  {/* Worktrees */}
-                  <div>
-                    <SectionLabel title="Worktrees" />
-                    <SettingsCard>
-                      <SettingRow label="Use worktrees for new threads" description="Isolate each thread in its own git worktree under .kiro/worktrees/">
-                        <Switch
-                          checked={draft.projectPrefs?.[activeWorkspace ?? '']?.worktreeEnabled ?? false}
-                          onCheckedChange={(checked) => {
-                            if (!activeWorkspace) return
-                            const prefs = draft.projectPrefs ?? {}
-                            const existing = prefs[activeWorkspace] ?? {}
-                            updateDraft({ projectPrefs: { ...prefs, [activeWorkspace]: { ...existing, worktreeEnabled: checked } } })
-                          }}
-                          disabled={!activeWorkspace}
-                          aria-label="Toggle worktrees for new threads"
-                        />
-                      </SettingRow>
-                    </SettingsCard>
-                  </div>
-
-                  {/* Notifications */}
-                  <div>
-                    <SectionLabel title="Notifications" />
-                    <SettingsCard>
-                      <SettingRow label="Desktop notifications" description="Notify when the agent finishes, errors, or needs approval in the background">
-                        <Switch
-                          checked={draft.notifications ?? true}
-                          onCheckedChange={(checked) => updateDraft({ notifications: checked })}
-                          aria-label="Toggle desktop notifications"
-                        />
-                      </SettingRow>
-                      <Divider />
-                      <SettingRow label="Notification sound" description="Play a chime when a notification is sent">
-                        <Switch
-                          checked={draft.soundNotifications ?? true}
-                          onCheckedChange={(checked) => updateDraft({ soundNotifications: checked })}
-                          disabled={!(draft.notifications ?? true)}
-                          aria-label="Toggle notification sound"
-                        />
-                      </SettingRow>
-                    </SettingsCard>
-                  </div>
-
-                  {/* Updates */}
-                  <div>
-                    <SectionLabel title="Updates" />
-                    <SettingsCard>
-                      <UpdatesCard />
-                    </SettingsCard>
-                  </div>
-                </>
-              )}
-
-              {/* ── Appearance ── */}
-              {section === 'appearance' && (
-                <>
-                  <SectionHeader section="appearance" />
-                  <div>
-                    <SectionLabel title="Theme" />
-                    <SettingsCard className="!py-4">
-                      <ThemeSelector
-                        value={draft.theme ?? 'dark'}
-                        onChange={(mode) => updateDraft({ theme: mode })}
-                      />
-                    </SettingsCard>
-                  </div>
-
-                  <div>
-                    <SectionLabel title="Font size" />
-                    <SettingsCard className="!py-4">
-                      <div className="flex items-center gap-4">
-                        <span className="text-[11px] font-medium text-muted-foreground tabular-nums">{FONT_SIZE_MIN}</span>
-                        <input
-                          type="range"
-                          min={FONT_SIZE_MIN}
-                          max={FONT_SIZE_MAX}
-                          step={1}
-                          value={draft.fontSize ?? 14}
-                          onChange={(e) => updateDraft({ fontSize: Number(e.target.value) })}
-                          aria-label="Font size"
-                          className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-border/60 accent-primary [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-sm"
-                        />
-                        <span className="text-[11px] font-medium text-muted-foreground tabular-nums">{FONT_SIZE_MAX}</span>
-                        <span className="min-w-[3ch] text-center text-sm font-semibold tabular-nums text-primary">{draft.fontSize ?? 14}</span>
-                      </div>
-                      <div className="mt-3 rounded-lg border border-border/60 bg-background/50 px-4 py-3">
-                        <p className="text-[11px] font-medium text-muted-foreground mb-1.5">Preview</p>
-                        <p className="text-foreground/80 leading-relaxed" style={{ fontSize: draft.fontSize }}>The quick brown fox jumps over the lazy dog</p>
-                      </div>
-                    </SettingsCard>
-                  </div>
-
-                  <div>
-                    <SectionLabel title="Layout" />
-                    <SettingsCard className="!py-4">
-                      <label className="mb-1.5 block text-[12px] font-medium text-foreground/70">Sidebar position</label>
-                      <div className="flex gap-2">
-                        {(['left', 'right'] as const).map((pos) => (
-                          <button
-                            key={pos}
-                            onClick={() => updateDraft({ sidebarPosition: pos })}
-                            className={cn(
-                              'flex-1 rounded-lg border py-2.5 text-center text-xs font-medium capitalize transition-colors',
-                              (draft.sidebarPosition ?? 'left') === pos
-                                ? 'border-primary bg-primary/10 text-primary'
-                                : 'border-border/60 text-muted-foreground hover:bg-accent hover:text-foreground',
-                            )}
-                          >
-                            {pos}
-                          </button>
-                        ))}
-                      </div>
-                    </SettingsCard>
-                  </div>
-                </>
-              )}
-
-              {/* ── Keymap ── */}
-              {section === 'keymap' && (() => {
-                const q = keymapFilter.toLowerCase()
-                const filtered = q
-                  ? KEYMAP.filter((e) => e.command.toLowerCase().includes(q) || e.keys.toLowerCase().includes(q) || e.group.toLowerCase().includes(q))
-                  : KEYMAP
-                const groups = [...new Set(filtered.map((e) => e.group))]
-
-                return (
-                  <>
-                    <SectionHeader section="keymap" />
-
-                    <div className="relative">
-                      <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        value={keymapFilter}
-                        onChange={(e) => setKeymapFilter(e.target.value)}
-                        placeholder="Search shortcuts…"
-                        className="flex h-10 w-full rounded-xl border border-input bg-background/50 pl-10 pr-4 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      />
-                    </div>
-
-                    {groups.length === 0 && (
-                      <div className="flex flex-col items-center gap-2 py-12">
-                        <IconSearch className="size-8 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">No matching shortcuts</p>
-                      </div>
-                    )}
-
-                    {groups.map((group) => (
-                      <div key={group} className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{group}</span>
-                          <div className="flex-1 border-t border-border/50" />
-                        </div>
-                        <SettingsCard className="divide-y divide-border/30 !p-0 overflow-hidden">
-                          {filtered.filter((e) => e.group === group).map((entry) => (
-                            <div key={entry.command} className="flex items-center justify-between px-5 py-2.5 transition-colors hover:bg-muted/15">
-                              <span className="text-[13px] text-foreground/90">{entry.command}</span>
-                              <kbd className="shrink-0 rounded-md border border-border/60 bg-muted/50 px-2 py-1 font-mono text-[11px] text-muted-foreground shadow-sm">
-                                {entry.keys}
-                              </kbd>
-                            </div>
-                          ))}
-                        </SettingsCard>
-                      </div>
-                    ))}
-                  </>
                 )
-              })()}
-
-              {/* ── Advanced ── */}
-              {section === 'advanced' && (
+              ) : (
                 <>
-                  <SectionHeader section="advanced" />
-                  <div>
-                    <SectionLabel title="Privacy" />
-                    <SettingsCard>
-                      <SettingRow
-                        label="Share anonymous usage data"
-                        description="Feature usage and app version only. No prompts, code, file paths, branch names, or commit messages are ever sent."
-                      >
-                        <Switch
-                          checked={draft.analyticsEnabled ?? true}
-                          onCheckedChange={(checked) => updateDraft({ analyticsEnabled: checked })}
-                          aria-label="Toggle anonymous analytics"
-                        />
-                      </SettingRow>
-                    </SettingsCard>
-                  </div>
-
-                  <div>
-                    <SectionLabel title="Git" />
-                    <SettingsCard>
-                      <SettingRow label="Co-authored-by Kirodex" description="Append trailer to every commit">
-                        <Switch
-                          checked={draft.coAuthor ?? true}
-                          onCheckedChange={(checked) => updateDraft({ coAuthor: checked })}
-                          aria-label="Toggle co-author trailer"
-                        />
-                      </SettingRow>
-                      <Divider />
-                      <SettingRow label="Task completion report" description="Summary card when a task finishes">
-                        <Switch
-                          checked={draft.coAuthorJsonReport ?? true}
-                          onCheckedChange={(checked) => updateDraft({ coAuthorJsonReport: checked })}
-                          aria-label="Toggle task completion report"
-                        />
-                      </SettingRow>
-                    </SettingsCard>
-                  </div>
-
-                  <div>
-                    <SectionLabel title="Data" />
-                    <SettingsCard>
-                      <SettingRow label="Conversation history" description="Threads are saved between sessions">
-                        <button
-                          type="button"
-                          onClick={() => { useTaskStore.getState().clearHistory(); handleClose() }}
-                          className="flex items-center gap-1.5 rounded-lg border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
-                        >
-                          <IconTrash className="size-3" />
-                          Clear history
-                        </button>
-                      </SettingRow>
-                      <Divider />
-                      <SettingRow label="Replay onboarding" description="Run the setup wizard again">
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const store = useSettingsStore.getState()
-                            await store.saveSettings({ ...store.settings, hasOnboardedV2: false })
-                            handleClose()
-                          }}
-                          className="flex items-center gap-1.5 rounded-lg border border-input px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent"
-                        >
-                          <IconRefresh className="size-3" />
-                          Replay
-                        </button>
-                      </SettingRow>
-                    </SettingsCard>
-                  </div>
-
-                  <div>
-                    <SectionLabel title="Recently deleted" />
-                    <DeletedThreadsRestore />
-                  </div>
+                  {section === 'account' && <AccountSection />}
+                  {section === 'general' && <GeneralSection draft={draft} updateDraft={updateDraft} />}
+                  {section === 'appearance' && <AppearanceSection draft={draft} updateDraft={updateDraft} />}
+                  {section === 'keymap' && <KeymapSection />}
+                  {section === 'advanced' && <AdvancedSection draft={draft} updateDraft={updateDraft} onClose={handleClose} />}
+                  {section === 'archives' && <ArchivesSection />}
                 </>
               )}
-
             </div>
           </div>
         </div>
