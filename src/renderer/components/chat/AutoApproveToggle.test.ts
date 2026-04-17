@@ -38,7 +38,7 @@ describe('selectAutoApprove', () => {
 })
 
 describe('toggle calls ipc.setAutoApprove for live tasks', () => {
-  let ipcMock: { setAutoApprove: ReturnType<typeof vi.fn> }
+  let ipcMock: { setAutoApprove: ReturnType<typeof vi.fn<(taskId: string, value: boolean) => Promise<void>>> }
 
   beforeEach(async () => {
     vi.resetAllMocks()
