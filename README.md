@@ -95,24 +95,31 @@ chmod +x Kirodex_*.AppImage && ./Kirodex_*.AppImage
 - Chat interface via the [Agent Client Protocol](https://github.com/anthropics/agent-client-protocol) SDK
 - Threaded agentic development — each conversation runs as an independent agent thread with its own context, tool calls, and execution history
 - Empty thread splash screen with clickable slash commands and `@` mentions to get started fast
-- Slash commands (`/clear`, `/close`, `/model`, `/agent`, `/plan`, `/chat`) with fuzzy search across all pickers
+- Slash commands (`/clear`, `/close`, `/model`, `/agent`, `/plan`, `/chat`, `/data`, `/branch`, `/worktree`, `/fork`) with fuzzy search across all pickers
 - Agent mention pills (`@agent`) with built-in agents, styled icons, and fuzzy matching
 - Plan mode with per-thread state and a handoff card to start building after planning
 - Context-aware plan handoff — when context usage grows past 30% in plan mode, a suggestion banner appears to switch to implement mode before the context window fills up; the plan is preserved across compaction so the coding agent picks up where the planner left off
 - Thread archiving — `/close` preserves conversation history in a read-only view instead of deleting
 - Task management: create, pause, resume, cancel, delete
 - Question cards — agents can ask multi-choice questions; pick an option and reply inline
+- Subagent display — parallel agent pipelines render as expandable stage cards with dependency indicators
 - Kiro config sidebar — browse agents (grouped by stack), skills, steering rules, and MCP servers from `.kiro/`
+- Emoji and project-file icon picker for customizing thread icons
 
 **Code and diffs**
 - Syntax-highlighted inline and side-by-side diff views ([Shiki](https://shiki.style))
+- `strReplace` tool calls rendered as git-style diffs inline in chat
 - Code viewer for read tool calls with line numbers and syntax highlighting
 - Click a file operation in chat to jump to that file
 - Changed files summary with per-file +/- stats and one-click stage/revert
+- Image attachments sent as proper ACP `ContentBlock::Image` for multimodal agents
 
 **Git**
 - Branch, stage, commit, push, pull, fetch through [git2](https://crates.io/crates/git2) with SSH + HTTPS credential support (no shell commands)
+- AI-powered commit message generation from diff stats
 - Live diff stats in the header bar, always visible when a project is open
+- Staged file count indicator in the diff toolbar
+- Delete local branches from the branch selector
 - Git worktree support — isolate each thread in its own working directory under `.kiro/worktrees/`
 - `/branch` command to create and checkout a new branch inline
 - `/worktree` command to create a worktree and spawn a new thread in it
@@ -208,11 +215,10 @@ See [docs/architecture.md](docs/architecture.md) for the system diagram, backend
 
 | Feature | Description |
 |---------|-------------|
-| Git worktree | Support for managing multiple working trees |
 | Agent library | Browse and install agents from a curated registry |
 | Skills library | Browse and install skills from a curated registry |
-| UI improvements | General polish, layout, and interaction enhancements |
 | Winget / Scoop | Windows package manager support |
+| MCP server management | Add, remove, and configure MCP servers from the UI |
 
 ## Contributing
 
