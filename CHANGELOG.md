@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.14.0] - 2026-04-19
+
+### Features
+
+- icon overrides, auth fallback, collapsible removal, history backup, subagent display ([`2b6d71b`](https://github.com/thabti/kirodex/commit/2b6d71bca205c6610c6efb8f3b2006f5a15a46bf))
+- add analytics dashboard with redb backend and recharts ([`4b12592`](https://github.com/thabti/kirodex/commit/4b12592e884ee96f829fc16ba2df5f63a40a7025))
+
+### Documentation
+
+- add inline diffs, image attachments, commit generation features ([`ef6a284`](https://github.com/thabti/kirodex/commit/ef6a284bf03de66b33c4cfcb8da73cdd8c7f0df1))
+
 ## [v0.13.0] - 2026-04-18
 
 ### Features
